@@ -70,11 +70,6 @@ protected:
     void shiftStateByError(robot_state::RobotStatePtr state, const robot_state::JointModel* base_joint,
                            const std::string& link, const Eigen::Affine3d& desired_pose) const;
 
-    // In the given state, force link to achieve desired_pose (in the world frame) by adjusting
-    // the root joint of the state.  The root joint of the state MUST be a floating joint.
-    void shiftStateByError(robot_state::RobotStatePtr state,
-                           const std::string& link, const Eigen::Affine3d& desired_pose) const;
-
     boost::mutex work_state_lock_;
     robot_state::RobotStatePtr work_state_1_;
     robot_state::RobotStatePtr work_state_2_;
