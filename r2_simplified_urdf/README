@@ -1,0 +1,3 @@
+This package provides simplified URDF models for moveit_r2_kinematics.  The purpose is to speed up inverse kinematics by reducing the number of overall variables in the model.  You could provide models of the robot for only links in the planning group(s) that you care about.
+
+Example: IK for the legs is sped up 3-4x by removing the feet and upper body links.  This is specified in the launch script with the parameter "legs/simplified_robot_description".

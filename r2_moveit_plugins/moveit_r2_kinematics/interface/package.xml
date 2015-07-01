@@ -1,0 +1,21 @@
+<package>
+  <name>r2_tree_kinematics</name>
+  <version>0.0.1</version>
+  <description>Custom MoveIt! kinematics plugins for R2</description>
+  <maintainer email="rluna@rice.edu">Ryan Luna</maintainer>
+
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>moveit_core</build_depend>
+  <build_depend>moveit_ros_planning</build_depend>
+  <build_depend>tf_conversions</build_depend>
+
+  <run_depend>moveit_core</run_depend>
+  <run_depend>moveit_ros_planning</run_depend>
+  <run_depend>tf_conversions</run_depend>
+
+  <!--<build_depend>nasa_robodyn_controllers_core</build_depend>
+  <run_depend>nasa_robodyn_controllers_core</run_depend>-->
+</package>

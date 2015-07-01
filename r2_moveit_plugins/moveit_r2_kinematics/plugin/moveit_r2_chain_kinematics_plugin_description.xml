@@ -1,0 +1,7 @@
+<library path="libmoveit_r2_chain_kinematics">
+  <class name="moveit_r2_kinematics/MoveItR2ChainKinematicsPlugin" type="moveit_r2_kinematics::MoveItR2ChainKinematicsPlugin" base_class_type="kinematics::KinematicsBase">
+    <description>
+      Custom inverse kinematics for R2
+    </description>
+  </class>
+</library>

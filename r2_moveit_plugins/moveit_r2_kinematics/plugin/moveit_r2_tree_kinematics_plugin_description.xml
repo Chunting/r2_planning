@@ -1,0 +1,7 @@
+<library path="libr2_tree_kinematics_plugin">
+  <class name="moveit_r2_kinematics/MoveItR2TreeKinematicsPlugin" type="moveit_r2_kinematics::MoveItR2TreeKinematicsPlugin" base_class_type="kinematics::KinematicsBase">
+    <description>
+      Custom inverse kinematics for R2
+    </description>
+  </class>
+</library>

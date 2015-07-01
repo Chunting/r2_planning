@@ -1,0 +1,7 @@
+<library path="libmoveit_r2_pose_sampler">
+  <class name="moveit_r2_constraints/MoveItR2PoseSamplerAllocator" type="moveit_r2_constraints::MoveItR2PoseSamplerAllocator" base_class_type="constraint_samplers::ConstraintSamplerAllocator">
+    <description>
+      Custom pose sampler allocator for R2
+    </description>
+  </class>
+</library>

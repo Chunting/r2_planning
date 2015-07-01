@@ -1,0 +1,14 @@
+<package>
+
+  <name>r2_simplified_urdf</name>
+  <version>0.1.0</version>
+  <description>
+     Simplified URDFs for R2
+  </description>
+  <author email="rluna@rice.edu">Ryan Luna</author>
+  <maintainer email="rluna@rice.edu">Ryan Luna</maintainer>
+
+  <license>BSD</license>
+  <buildtool_depend>catkin</buildtool_depend>
+
+</package>
