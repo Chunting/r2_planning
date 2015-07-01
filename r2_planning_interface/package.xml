@@ -1,0 +1,33 @@
+<package>
+  <name>r2_planning_interface</name>
+  <version>0.0.1</version>
+  <description>r2_planning</description>
+  <maintainer email="rluna@rice.edu">Ryan Luna</maintainer>
+
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>roscpp</build_depend>
+  <build_depend>moveit_msgs</build_depend>
+  <build_depend>moveit_core</build_depend>
+  <build_depend>moveit_ros_planning</build_depend>
+  <build_depend>moveit_ros_move_group</build_depend>
+  <build_depend>moveit_ros_warehouse</build_depend>
+  <!--<build_depend>nasa_robodyn</build_depend>-->
+  <!-- <build_depend>moveit_r2_kinematics</build_depend> -->
+  <build_depend>r2_tree_kinematics</build_depend>
+  <build_depend>moveit_ros_planning_interface</build_depend>
+
+  <run_depend>roscpp</run_depend>
+  <run_depend>moveit_msgs</run_depend>
+  <run_depend>moveit_core</run_depend>
+  <run_depend>moveit_ros_planning</run_depend>
+  <run_depend>moveit_ros_move_group</run_depend>
+  <run_depend>moveit_ros_warehouse</run_depend>
+  <!--<run_depend>nasa_robodyn</run_depend>-->
+  <!-- <run_depend>moveit_r2_kinematics</run_depend> -->
+  <run_depend>r2_tree_kinematics</run_depend>
+  <run_depend>moveit_ros_planning_interface</run_depend>
+
+</package>

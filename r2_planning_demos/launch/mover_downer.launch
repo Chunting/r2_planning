@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+
+    <!-- Launch the localizer node -->
+    <node name="mover_downer" pkg="r2_planning_demos" type="mover_downer" output="screen" required="true"/>
+
+</launch>

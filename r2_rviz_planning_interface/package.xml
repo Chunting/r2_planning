@@ -1,0 +1,27 @@
+<package>
+  <name>r2_rviz_planning_interface</name>
+  <version>0.0.1</version>
+  <description>r2_demos</description>
+  <maintainer email="rluna@rice.edu">Ryan Luna</maintainer>
+
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>roscpp</build_depend>
+  <build_depend>rviz</build_depend>
+  <build_depend>r2_planning_interface</build_depend>
+  <!--<build_depend>interactive_markers</build_depend>-->
+  <build_depend>pluginlib</build_depend>
+
+  <run_depend>roscpp</run_depend>
+  <run_depend>rviz</run_depend>
+  <run_depend>r2_planning_interface</run_depend>
+  <!--<run_depend>interactive_markers</run_depend>-->
+  <run_depend>pluginlib</run_depend>
+
+  <export>
+    <rviz plugin="${prefix}/r2_rviz_plugin_description.xml"/>
+  </export>
+
+</package>

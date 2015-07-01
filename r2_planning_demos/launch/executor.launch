@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+
+    <arg name="execute" default="true"/>
+
+    <!-- Launch the localizer node -->
+    <node name="executor" pkg="r2_planning_demos" type="executor" output="screen" required="true">
+      <param name="execute" value="$(arg execute)"/>
+    </node>
+
+</launch>

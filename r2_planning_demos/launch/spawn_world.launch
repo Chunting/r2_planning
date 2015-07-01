@@ -1,0 +1,9 @@
+<launch>
+  <arg name="world" default="$(find r2_planning_demos)/world/iss_navigation.world.yaml"/>
+
+  <!-- Spawn the ISS+handrails world. -->
+  <node name="spawn_world" type="spawn_world" pkg="r2_planning_demos" output="screen">
+    <rosparam command="load" file="$(arg world)"/>
+  </node>
+
+</launch>

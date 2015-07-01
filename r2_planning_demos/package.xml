@@ -1,0 +1,14 @@
+<package>
+  <name>r2_planning_demos</name>
+  <version>0.0.1</version>
+  <description>r2_demos</description>
+  <maintainer email="rluna@rice.edu">Ryan Luna</maintainer>
+
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>r2_planning_interface</build_depend>
+  <run_depend>r2_planning_interface</run_depend>
+
+</package>

@@ -1,0 +1,5 @@
+<!-- Use this node to setup the proper transforms for the virtual joint of R2 if not using anything else for RViz -->
+
+<launch>
+   <node pkg="tf" type="static_transform_publisher" name="virtual_joint_broadcaster_0" args="0 0 0 0 0 0 virtual_world world 20" />
+</launch>

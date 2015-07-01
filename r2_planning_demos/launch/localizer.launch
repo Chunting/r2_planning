@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<launch>
+
+    <arg name="fake_robot" default="false"/>
+
+    <node if="$(arg fake_robot)" name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher"/>
+
+    <!-- Create a joint state publisher to publish variable tfs -->
+    <node if="$(arg fake_robot)" name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
+        <rosparam param="source_list">["r2_joint_states"]</rosparam>
+    </node>
+
+    <arg name="debug" default="false"/>
+    <arg unless="$(arg debug)" name="launch_prefix" value="" />
+    <arg     if="$(arg debug)" name="launch_prefix" value="gdb --ex run --args" />
+
+    <!-- Launch the localizer node -->
+    <node name="localizer" launch-prefix="$(arg launch_prefix)" pkg="r2_planning_demos" type="localizer" output="screen" required="true"/>
+
+</launch>

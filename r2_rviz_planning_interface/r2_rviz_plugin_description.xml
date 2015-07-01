@@ -1,0 +1,7 @@
+<library path="lib/libr2_rviz_planning_interface">
+  <class name="r2rviz/R2Planning"
+         type="r2rviz::R2Planning"
+         base_class_type="rviz::Panel">
+    <description>R2 planning interface</description>
+  </class>
+</library>

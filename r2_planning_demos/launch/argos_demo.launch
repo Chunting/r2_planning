@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<launch>
+    <arg name="debug" default="false"/>
+    <arg unless="$(arg debug)" name="launch_prefix" value="" />
+    <arg     if="$(arg debug)" name="launch_prefix" value="gdb --ex run --args" />
+
+    <arg name="world" default="$(find r2_planning_demos)/world/argos.world.yaml"/>
+
+    <!-- set true if executing trajectories on the real robot -->
+    <arg name="for_reals" default="false"/>
+
+    <!--  spawn world - RViz visualization -->
+    <include file="$(find r2_planning_demos)/launch/spawn_world.launch">
+        <arg name="world" value="$(arg world)"/>
+    </include>
+
+    <!-- Launch the planning node -->
+    <node name="argos_demo" launch-prefix="$(arg launch_prefix)" pkg="r2_planning_demos" type="argos_demo" output="screen" required="true">
+        <param name="execute" value="$(arg for_reals)"/>
+        <rosparam command="load" file="$(arg world)"/>
+    </node>
+
+</launch>

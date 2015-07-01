@@ -1,0 +1,180 @@
+iss:
+    name: ISS
+    pose:
+      x: 0.0
+      y: 0.0
+      z: 0.0
+      roll: 0.0
+      pitch: 0.0
+      yaw: 0.0
+    frame: virtual_world
+    mesh_resource: package://r2_gazebo/models/iss/meshes/US_Lab_Empty_Rack_noHandrail.dae
+
+handrails:
+    - name: Handrail_stow
+      pose:
+        x: -3.2258
+        y: -0.86
+        z: -1.09314
+        roll: 0.0
+        pitch: 0.0
+        yaw: 0.0
+      frame: virtual_world
+      group: Handrail_deck
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
+
+    - name: Handrail_deck_1
+      pose:
+        x: -2.2098
+        y: -0.37729
+        z: -1.09314
+        roll: 0.0
+        pitch: 0.0
+        yaw: 1.57079
+      frame: virtual_world
+      group: Handrail_deck
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
+
+    - name: Handrail_deck_2
+      pose:
+        x: -1.0848
+        y: -0.15
+        z: -1.09314
+        roll: 0.0
+        pitch: 0.0
+        yaw: 1.57079
+      frame: virtual_world
+      group: Handrail_deck
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
+
+    - name: Handrail_deck_3
+      pose:
+        x: -0.025
+        y: -0.67729
+        z: -1.09314
+        roll: 0.0
+        pitch: 0.0
+        yaw: 1.57079
+      frame: virtual_world
+      group: Handrail_deck
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
+
+    - name: Handrail_deck_4
+      pose:
+        x: 1.04
+        y: -0.15
+        z: -1.09314
+        roll: 0.0
+        pitch: 0.0
+        yaw: 1.57079
+      frame: virtual_world
+      group: Handrail_deck
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
+
+    - name: Handrail_port_0
+      pose:
+        x: -1.0848
+        y: -1.1
+        z:  0.6
+        roll: -1.57079
+        pitch: 0.0
+        yaw: 1.57079
+      frame: virtual_world
+      group: Handrail_port
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
+
+    - name: Handrail_port_1
+      pose:
+        x: -0.0402
+        y: -1.1
+        z:  0.1
+        roll: -1.57079
+        pitch: 0.0
+        yaw: 1.57079
+      frame: virtual_world
+      group: Handrail_port
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
+
+    - name: Handrail_port_2
+      pose:
+        x: 1.055
+        y: -1.1
+        z:  0.6
+        roll: -1.57079
+        pitch: 0.0
+        yaw: 1.57079
+      frame: virtual_world
+      group: Handrail_port
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
+
+    - name: Handrail_port_3
+      pose:
+        x: 2.06
+        y: -1.1
+        z:  0.1
+        roll: -1.57079
+        pitch: 0.0
+        yaw: 1.57079
+      frame: virtual_world
+      group: Handrail_port
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
+
+    - name: Handrail_stbd_0
+      pose:
+        x: -2.2098
+        y: 1.09
+        z:  0.6
+        roll: 1.57079
+        pitch: 0.0
+        yaw: -1.57079
+      frame: virtual_world
+      group: Handrail_starboard
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
+
+    - name: Handrail_stbd_1
+      pose:
+        x: -1.0848
+        y: 1.09
+        z:  0.1
+        roll: 1.57079
+        pitch: 0.0
+        yaw: -1.57079
+      frame: virtual_world
+      group: Handrail_starboard
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
+
+    - name: Handrail_stbd_2
+      pose:
+        x: -0.03
+        y: 1.09
+        z:  0.6
+        roll: 1.57079
+        pitch: 0.0
+        yaw: -1.57079
+      frame: virtual_world
+      group: Handrail_starboard
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
+
+    - name: Handrail_stbd_3
+      pose:
+        x: 1.04
+        y: 1.09
+        z:  0.1
+        roll: 1.57079
+        pitch: 0.0
+        yaw: -1.57079
+      frame: virtual_world
+      group: Handrail_starboard
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
+
+    - name: Handrail_stbd_4
+      pose:
+        x: 2.06
+        y: 1.09
+        z:  0.6
+        roll: 1.57079
+        pitch: 0.0
+        yaw: -1.57079
+      frame: virtual_world
+      group: Handrail_starboard
+      mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
