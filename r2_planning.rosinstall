@@ -1,4 +1,3 @@
-# moveit_ompl_interface
 - git: {local-name: moveit_ompl_interface/ompl_source, uri: 'https://github.com/ryanluna/catkin_ompl'}
 - git: {local-name: moveit_ompl_interface/ompl_constraints, uri: 'https://github.com/ryanluna/catkin_ompl_constraints'}
 - git: {local-name: moveit_ompl_interface/moveit_ompl_planning_interface, uri: 'https://github.com/ryanluna/moveit_ompl_planning_interface.git', version: ompl_source}
