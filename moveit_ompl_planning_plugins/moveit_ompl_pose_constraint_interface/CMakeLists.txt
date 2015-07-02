@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
     ompl_source
     moveit_ompl_planning_interface
     moveit_r2_kinematics
+    moveit_ompl_components
 )
 
 catkin_package(
@@ -22,6 +23,7 @@ catkin_package(
     ompl_source
     moveit_ompl_planning_interface
     moveit_r2_kinematics
+    moveit_ompl_components
 )
 
 include_directories(include
