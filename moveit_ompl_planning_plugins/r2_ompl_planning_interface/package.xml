@@ -11,13 +11,13 @@
 
   <build_depend>ompl_source</build_depend>
   <build_depend>moveit_ompl_planning_interface</build_depend>
-  <build_depend>moveit_ompl_interpolation_interface</build_depend>
+  <build_depend>moveit_ompl_pose_constraint_interface</build_depend>
   <build_depend>moveit_r2_kinematics</build_depend>
   <build_depend>moveit_ompl_components</build_depend>
 
   <run_depend>ompl_source</run_depend>
   <run_depend>moveit_ompl_planning_interface</run_depend>
-  <run_depend>moveit_ompl_interpolation_interface</run_depend>
+  <run_depend>moveit_ompl_pose_constraint_interface</run_depend>
   <run_depend>moveit_r2_kinematics</run_depend>
   <run_depend>moveit_ompl_components</run_depend>
 
