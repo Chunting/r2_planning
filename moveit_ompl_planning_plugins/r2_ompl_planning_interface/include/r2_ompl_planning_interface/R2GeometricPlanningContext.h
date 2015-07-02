@@ -37,7 +37,7 @@
 #ifndef MOVEIT_OMPL_INTERFACE_R2_GEOMETRIC_PLANNING_CONTEXT_
 #define MOVEIT_OMPL_INTERFACE_R2_GEOMETRIC_PLANNING_CONTEXT_
 
-#include "moveit_ompl_interpolation_interface/GeometricPoseConstraintPlanningContext.h"
+#include "moveit_ompl_pose_constraint_interface/GeometricPoseConstraintPlanningContext.h"
 
 namespace ompl_interface
 {
