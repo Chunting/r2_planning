@@ -36,8 +36,14 @@
 
 #include "moveit_ompl_interpolation_interface/GeometricPoseConstraintPlanningContext.h"
 #include "moveit/ompl_interface/parameterization/joint_space/joint_model_state_space.h"
+#include "moveit_ompl_components/LinearMotionValidator.h"
+#include "moveit_ompl_components/CartesianDistanceOptimizationObjective.h"
+#include "moveit_ompl_components/GroupClearanceOptimizationObjective.h"
 
 #include <pluginlib/class_loader.h>
+
+#include <ompl/geometric/planners/stride/STRIDE.h>
+#include <ompl/geometric/planners/casper/CASPER.h>
 
 using namespace ompl_interface;
 
@@ -54,10 +60,16 @@ static ompl::base::PlannerPtr allocatePlanner(const ompl::base::SpaceInformation
 
 GeometricPoseConstraintPlanningContext::GeometricPoseConstraintPlanningContext() : GeometricPlanningContext()
 {
+    GeometricPlanningContext::registerPlannerAllocator("geometric::STRIDE", boost::bind(&allocatePlanner<ompl::geometric::STRIDE>, _1, _2, _3));
+    GeometricPlanningContext::registerPlannerAllocator("geometric::CASPER", boost::bind(&allocatePlanner<ompl::geometric::CASPER>, _1, _2, _3));
+
+    interpolator_ = NULL;
 }
 
 GeometricPoseConstraintPlanningContext::~GeometricPoseConstraintPlanningContext()
 {
+    if (interpolator_)
+        delete interpolator_;
 }
 
 std::string GeometricPoseConstraintPlanningContext::getDescription()
@@ -93,11 +105,81 @@ void GeometricPoseConstraintPlanningContext::initialize(const std::string& ros_n
     work_state_3_->update();
 
     // Setup interpolation function that also adjusts for exactly one pose constraint
-    mbss_->setInterpolationFunction(boost::bind(&GeometricPoseConstraintPlanningContext::interpolate, this, _1, _2, _3, _4));
+    bool cartesianInterpolator = useCartesianInterpolator(spec.planner);
+    if (cartesianInterpolator)
+    {
+        if (interpolator_)
+            delete interpolator_;
+
+        interpolator_ = new CartesianSpaceInterpolator(spec.model->getJointModelGroup(spec.group));
+        simple_setup_->getSpaceInformation()->setMotionValidator(ompl::base::MotionValidatorPtr(new LinearMotionValidator(simple_setup_->getSpaceInformation())));
+        //simple_setup_->getSpaceInformation()->setMotionValidator(ompl::base::MotionValidatorPtr(new SubdivisionMotionValidator(simple_setup_->getSpaceInformation())));
+        //mbss_->setDistanceFunction(boost::bind(&GeometricPoseConstraintPlanningContext::cartesianDistance, this, _1, _2));
+    }
+    mbss_->setInterpolationFunction(boost::bind(&GeometricPoseConstraintPlanningContext::interpolate, this, _1, _2, _3, _4, cartesianInterpolator));
+
+    ROS_INFO("Using %s interpolation scheme", cartesianInterpolator ? "Cartesian" : "traditional");
+
+    //setOptimizationObjective();
+    // with this objective, do NOT simplify paths
+    //simplify_ = false;
+}
+
+// TODO: Put this flag in as a planner param in the .yaml file?
+bool GeometricPoseConstraintPlanningContext::useCartesianInterpolator(const std::string& planner) const
+{
+    if (planner.size() >= 4)
+    {
+        return planner[planner.size()-3] == '_' &&
+               planner[planner.size()-2] == 'A' &&
+               planner[planner.size()-1] == 'G';
+    }
+
+    return false;
+}
+
+// Compute the physical distance between the joints (e.g., workspace distance)
+// Note: This is unlikely to be proper distance metric
+double GeometricPoseConstraintPlanningContext::cartesianDistance(const ompl::base::State *a, const ompl::base::State *b) const
+{
+    boost::mutex::scoped_lock(work_state_lock_);
+
+    const robot_model::JointModelGroup* group = mbss_->getJointModelGroup();
+    work_state_1_->setJointGroupPositions(group, a->as<ModelBasedStateSpace::StateType>()->values);
+    work_state_1_->update();
+    work_state_2_->setJointGroupPositions(group, b->as<ModelBasedStateSpace::StateType>()->values);
+    work_state_2_->update();
+
+    double dist = 0.0;
+
+    const std::vector<const robot_model::JointModel*>& joints = group->getJointModels();
+    for (size_t i = 0; i < joints.size(); ++i)
+    {
+        std::string end_effector;
+        if (i < joints.size()-1)
+            end_effector = joints[i+1]->getChildLinkModel()->getName().c_str();
+        else
+        {
+            const std::vector<const robot_model::JointModel*> & joint_children = joints[i]->getChildLinkModel()->getChildJointModels();
+            end_effector = joint_children[0]->getChildLinkModel()->getName().c_str();
+        }
+
+        const Eigen::Affine3d& frame_a = work_state_1_->getGlobalLinkTransform(joints[i]->getChildLinkModel());
+        const Eigen::Affine3d& frame_b = work_state_2_->getGlobalLinkTransform(joints[i]->getChildLinkModel());
+
+        const Eigen::Vector3d& point_a = work_state_1_->getLinkModel(end_effector)->getJointOriginTransform().translation();
+        const Eigen::Vector3d& point_b = work_state_2_->getLinkModel(end_effector)->getJointOriginTransform().translation();
+
+        Eigen::Vector3d pa = frame_a * point_a;
+        Eigen::Vector3d pb = frame_b * point_b;
+        dist += (pb - pa).norm();
+    }
+    return dist;
 }
 
 bool GeometricPoseConstraintPlanningContext::interpolate(const ompl::base::State *from, const ompl::base::State *to,
-                                                         const double t, ompl::base::State *state)
+                                                         const double t, ompl::base::State *state,
+                                                         bool cartesianInterpolator)
 {
     boost::mutex::scoped_lock(work_state_lock_);
 
@@ -108,10 +190,17 @@ bool GeometricPoseConstraintPlanningContext::interpolate(const ompl::base::State
     work_state_2_->update();
 
     // Interpolate, then store the result in work_state_3
-    group->interpolate(from->as<ModelBasedStateSpace::StateType>()->values, to->as<ModelBasedStateSpace::StateType>()->values,
-                       t, state->as<ModelBasedStateSpace::StateType>()->values);
+    if (cartesianInterpolator)
+    {
+        interpolator_->interpolate(work_state_1_, work_state_2_, t, work_state_3_);
+    }
+    else
+    {
+        group->interpolate(from->as<ModelBasedStateSpace::StateType>()->values, to->as<ModelBasedStateSpace::StateType>()->values,
+                           t, state->as<ModelBasedStateSpace::StateType>()->values);
 
-    work_state_3_->setJointGroupPositions(group, state->as<ModelBasedStateSpace::StateType>()->values);
+        work_state_3_->setJointGroupPositions(group, state->as<ModelBasedStateSpace::StateType>()->values);
+    }
     work_state_3_->update();
 
     // fix work_state_3_ to satisfy to the path constraints
@@ -187,5 +276,83 @@ void GeometricPoseConstraintPlanningContext::allocateStateSpace(const ModelBased
     JointModelStateSpacePtr state_space_(new JointModelStateSpace(state_space_spec));
     mbss_ = boost::static_pointer_cast<ModelBasedStateSpace>(state_space_);
 }
+
+void GeometricPoseConstraintPlanningContext::setOptimizationObjective()
+{
+    ompl::base::OptimizationObjectivePtr clearanceObjective(new GroupClearanceOptimizationObjective(this));
+    GroupClearanceOptimizationObjective* cobj = static_cast<GroupClearanceOptimizationObjective*>(clearanceObjective.get());
+
+    /*
+    // Exact clearance computation
+    bool right_leg_fixed = pos_constraints[0].link_name.find("right_leg") != std::string::npos;
+    std::cout << "The " << (right_leg_fixed ? "RIGHT" : "LEFT") << " leg is fixed..." << std::endl;
+    CollisionRobotGroupPtr leg_geometry;
+    if (right_leg_fixed)
+        leg_geometry.reset(new CollisionRobotGroup("left_leg", spec.model));
+    else
+        leg_geometry.reset(new CollisionRobotGroup("right_leg", spec.model));
+    cobj->addRobotGroup(leg_geometry);
+
+    CollisionRobotGroupPtr upper_body_geometry(new CollisionRobotGroup("upper_body", spec.model));
+    //cobj->addRobotGroup(upper_body_geometry);
+
+    simple_setup_->setOptimizationObjective(clearanceObjective);
+    */
+
+    // Approximate clearance computation using 'fat robots'
+    // bool right_leg_fixed = pos_constraints[0].link_name.find("right_leg") != std::string::npos;
+    // std::cout << "The " << (right_leg_fixed ? "RIGHT" : "LEFT") << " leg is fixed..." << std::endl;
+
+    // cobj->addGroup("upper_body", 1.25, 50.0);
+    // cobj->addGroup("upper_body", 1.50, 10.0);
+    // cobj->addGroup(right_leg_fixed ? "left_leg" : "right_leg", 1.25, 50.0);
+    // cobj->addGroup(right_leg_fixed ? "left_leg" : "right_leg", 1.50, 10.0);
+    // cobj->addGroup(right_leg_fixed ? "left_leg" : "right_leg", 2.00, 5.0);
+    // simple_setup_->setOptimizationObjective(clearanceObjective);
+}
+
+/*double GeometricPoseConstraintPlanningContext::simplifySolution(double max_time)
+{
+    ompl::time::point start = ompl::time::now();
+    ompl::base::PlannerTerminationCondition ptc = ompl::base::timedPlannerTerminationCondition(max_time);
+    //mbss_->setDistanceFunction(boost::bind(&GeometricPoseConstraintPlanningContext::cartesianDistance, this, _1, _2));
+
+    ompl::geometric::PathGeometric &path = simple_setup_->getSolutionPath();
+    if (path.getStateCount() < 3)
+    {
+        //mbss_->setDistanceFunction(NULL); // reset distance function
+        return ompl::time::seconds(ompl::time::now() - start);
+    }
+
+    ompl::geometric::PathSimplifier ps(getOMPLSpaceInformation());
+
+    // try a randomized step of connecting vertices
+    bool tryMore = false;
+    if (ptc == false)
+        tryMore = ps.reduceVertices(path);
+
+    // try to collapse close-by vertices
+    if (ptc == false)
+        ps.collapseCloseVertices(path);
+
+    // try to reduce verices some more, if there is any point in doing so
+    int times = 0;
+    while (tryMore && ptc == false && ++times <= 5)
+        tryMore = ps.reduceVertices(path);
+
+    // run a more complex short-cut algorithm : allow splitting path segments
+    if (ptc == false)
+        tryMore = ps.shortcutPath(path);
+    else
+        tryMore = false;
+
+    // run the short-cut algorithm some more, if it makes a difference
+    times = 0;
+    while (tryMore && ptc == false && ++times <= 5)
+        tryMore = ps.shortcutPath(path);
+
+    //mbss_->setDistanceFunction(NULL); // reset distance function
+    return ompl::time::seconds(ompl::time::now() - start);
+}*/
 
 CLASS_LOADER_REGISTER_CLASS(ompl_interface::GeometricPoseConstraintPlanningContext, ompl_interface::OMPLPlanningContext);

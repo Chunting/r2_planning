@@ -1,0 +1,43 @@
+benchmark_config:
+    warehouse:
+        host: 127.0.0.1
+        port: 33829
+        scene_name: ISS         # Required
+    parameters:
+        name: ISS_Climbing
+        runs: 100
+        group: legs             # Required
+        timeout: 10.0
+        output_directory: /home/rluna/ROS/benchmarks/
+        queries: ISS_Step_2
+        start_states: ISS_Step_2
+        workspace:
+            frame_id: /virtual_root
+            min_corner:
+                x: -3
+                y: -1.5
+                z: -1.5
+            max_corner:
+                x: 1.0
+                y: 1.5
+                z: 1.5
+        # goal_offset:
+        #     x: 0
+        #     y: 0
+        #     z: 0
+        #     roll: 0
+        #     pitch: 0
+        #     yaw: 0
+    planners:
+        - plugin: ompl_interface/OMPLPlanningContextManager
+          planners:
+            - HiLo
+            - HiLo_AG
+            - RRTstar
+            - RRTstar_AG
+            - RRT
+            - RRT_AG
+            - KPIECE
+            - KPIECE_AG
+
+
