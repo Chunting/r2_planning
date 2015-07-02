@@ -106,12 +106,9 @@ void GeometricPoseConstraintPlanningContext::initialize(const std::string& ros_n
 
     // Setup interpolation function that also adjusts for exactly one pose constraint
     bool cartesianInterpolator = useCartesianInterpolator(spec.planner);
+    interpolator_ = new CartesianSpaceInterpolator(spec.model->getJointModelGroup(spec.group));
     if (cartesianInterpolator)
     {
-        if (interpolator_)
-            delete interpolator_;
-
-        interpolator_ = new CartesianSpaceInterpolator(spec.model->getJointModelGroup(spec.group));
         simple_setup_->getSpaceInformation()->setMotionValidator(ompl::base::MotionValidatorPtr(new LinearMotionValidator(simple_setup_->getSpaceInformation())));
         //simple_setup_->getSpaceInformation()->setMotionValidator(ompl::base::MotionValidatorPtr(new SubdivisionMotionValidator(simple_setup_->getSpaceInformation())));
         //mbss_->setDistanceFunction(boost::bind(&GeometricPoseConstraintPlanningContext::cartesianDistance, this, _1, _2));
