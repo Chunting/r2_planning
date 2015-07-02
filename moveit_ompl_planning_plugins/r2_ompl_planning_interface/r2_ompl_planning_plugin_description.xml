@@ -1,0 +1,6 @@
+<library path="libr2_ompl_planning_interface">
+  <class name="ompl_interface/R2GeometricPlanningContext" type="ompl_interface::R2GeometricPlanningContext" base_class_type="ompl_interface::OMPLPlanningContext">
+    <description>
+    </description>
+  </class>
+</library>

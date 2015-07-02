@@ -1,7 +1,7 @@
 /*********************************************************************
 * Software License Agreement (BSD License)
 *
-*  Copyright (c) 2014, Rice University
+*  Copyright (c) 2015, Rice University
 *  All rights reserved.
 *
 *  Redistribution and use in source and binary forms, with or without
@@ -34,24 +34,21 @@
 
 /* Author: Ryan Luna */
 
-#ifndef MOVEIT_OMPL_INTERFACE_GEOMETRIC_POSE_CONSTRAINT_PLANNING_CONTEXT_
-#define MOVEIT_OMPL_INTERFACE_GEOMETRIC_POSE_CONSTRAINT_PLANNING_CONTEXT_
+#ifndef MOVEIT_OMPL_INTERFACE_R2_GEOMETRIC_PLANNING_CONTEXT_
+#define MOVEIT_OMPL_INTERFACE_R2_GEOMETRIC_PLANNING_CONTEXT_
 
-#include "moveit/ompl_interface/geometric_planning_context.h"
-#include "moveit_ompl_components/CartesianSpaceInterpolator.h"
-#include <boost/thread/mutex.hpp>
-
+#include "moveit_ompl_interpolation_interface/GeometricPoseConstraintPlanningContext.h"
 
 namespace ompl_interface
 {
 
 /// \brief Definition of a geometric planning context that respects a single pose constraint
-class GeometricPoseConstraintPlanningContext : public GeometricPlanningContext
+class R2GeometricPlanningContext : public GeometricPoseConstraintPlanningContext
 {
 public:
-    GeometricPoseConstraintPlanningContext();
+    R2GeometricPlanningContext();
 
-    virtual ~GeometricPoseConstraintPlanningContext();
+    virtual ~R2GeometricPlanningContext();
 
     virtual std::string getDescription();
 
@@ -62,30 +59,12 @@ protected:
     /// \e mbss_ member.
     virtual void allocateStateSpace(const ModelBasedStateSpaceSpecification& state_space_spec);
 
-    // Distance a to b using cartesian joint coordinates instead of joint angles
-    double cartesianDistance(const ompl::base::State *a, const ompl::base::State *b) const;
+    /// \brief Simplify the solution path (in simple setup).  Use no more than max_time seconds.
+    virtual double simplifySolution(double max_time);
 
-    /// \brief Interpolate between from and to using the given parameters.
-    bool interpolate(const ompl::base::State *from, const ompl::base::State *to,
-                     const double t, ompl::base::State *state, bool cartesianInterpolator);
-
-    // In the given state, force link to achieve desired_pose (in the world frame) by adjusting
-    // the base_joint.  base_joint MUST be a floating joint.
-    void shiftStateByError(robot_state::RobotStatePtr state, const robot_state::JointModel* base_joint,
-                           const std::string& link, const Eigen::Affine3d& desired_pose) const;
-
-    // Set the optimization objective for this planning context
-    void setOptimizationObjective();
-
-    /// \brief Return true if we are using the Cartesian distance minimizing interpolator
-    bool useCartesianInterpolator(const std::string& planner) const;
-
-    boost::mutex work_state_lock_;
-    robot_state::RobotStatePtr work_state_1_;
-    robot_state::RobotStatePtr work_state_2_;
-    robot_state::RobotStatePtr work_state_3_;
-
-    CartesianSpaceInterpolator* interpolator_;
+    kinematics::KinematicsBasePtr left_leg_kinematics_;
+    kinematics::KinematicsBasePtr right_leg_kinematics_;
+    kinematics::KinematicsBasePtr legs_kinematics_;
 };
 
 }
