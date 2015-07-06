@@ -34,7 +34,7 @@
 
 /* Author: Ryan Luna */
 
-#include "moveit_ompl_pose_constraint_interface/GeometricPoseConstraintPlanningContext.h"
+#include "moveit_ompl_fixed_pose_interface/GeometricFixedPosePlanningContext.h"
 #include "moveit/ompl_interface/parameterization/joint_space/joint_model_state_space.h"
 
 #include <pluginlib/class_loader.h>
@@ -52,26 +52,26 @@ static ompl::base::PlannerPtr allocatePlanner(const ompl::base::SpaceInformation
     return planner;
 }
 
-GeometricPoseConstraintPlanningContext::GeometricPoseConstraintPlanningContext() : GeometricPlanningContext()
+GeometricFixedPosePlanningContext::GeometricFixedPosePlanningContext() : GeometricPlanningContext()
 {
 }
 
-GeometricPoseConstraintPlanningContext::~GeometricPoseConstraintPlanningContext()
+GeometricFixedPosePlanningContext::~GeometricFixedPosePlanningContext()
 {
 }
 
-std::string GeometricPoseConstraintPlanningContext::getDescription()
+std::string GeometricFixedPosePlanningContext::getDescription()
 {
-    return "OMPL Geometric Pose Constraint Planning";
+    return "OMPL Geometric Fixed Pose Planning";
 }
 
-void GeometricPoseConstraintPlanningContext::initialize(const std::string& ros_namespace, const PlanningContextSpecification& spec)
+void GeometricFixedPosePlanningContext::initialize(const std::string& ros_namespace, const PlanningContextSpecification& spec)
 {
     GeometricPlanningContext::initialize(ros_namespace, spec);
 
     if (!path_constraints_)
     {
-        ROS_ERROR("GeometricPoseConstraintPlanningContext: No path constraints specified");
+        ROS_ERROR("GeometricFixedPosePlanningContext: No path constraints specified");
         initialized_ = false;
         return;
     }
@@ -93,10 +93,10 @@ void GeometricPoseConstraintPlanningContext::initialize(const std::string& ros_n
     work_state_3_->update();
 
     // Setup interpolation function that also adjusts for exactly one pose constraint
-    mbss_->setInterpolationFunction(boost::bind(&GeometricPoseConstraintPlanningContext::interpolate, this, _1, _2, _3, _4));
+    mbss_->setInterpolationFunction(boost::bind(&GeometricFixedPosePlanningContext::interpolate, this, _1, _2, _3, _4));
 }
 
-bool GeometricPoseConstraintPlanningContext::interpolate(const ompl::base::State *from, const ompl::base::State *to,
+bool GeometricFixedPosePlanningContext::interpolate(const ompl::base::State *from, const ompl::base::State *to,
                                                          const double t, ompl::base::State *state)
 {
     boost::mutex::scoped_lock(work_state_lock_);
@@ -146,7 +146,7 @@ bool GeometricPoseConstraintPlanningContext::interpolate(const ompl::base::State
     return true;
 }
 
-void GeometricPoseConstraintPlanningContext::shiftStateByError(robot_state::RobotStatePtr state, const robot_state::JointModel* base_joint,
+void GeometricFixedPosePlanningContext::shiftStateByError(robot_state::RobotStatePtr state, const robot_state::JointModel* base_joint,
                                                               const std::string& link, const Eigen::Affine3d& desired_pose) const
 {
     if (base_joint->getType() != robot_state::JointModel::FLOATING)
@@ -182,10 +182,10 @@ void GeometricPoseConstraintPlanningContext::shiftStateByError(robot_state::Robo
     state->update();
 }
 
-void GeometricPoseConstraintPlanningContext::allocateStateSpace(const ModelBasedStateSpaceSpecification& state_space_spec)
+void GeometricFixedPosePlanningContext::allocateStateSpace(const ModelBasedStateSpaceSpecification& state_space_spec)
 {
     JointModelStateSpacePtr state_space_(new JointModelStateSpace(state_space_spec));
     mbss_ = boost::static_pointer_cast<ModelBasedStateSpace>(state_space_);
 }
 
-CLASS_LOADER_REGISTER_CLASS(ompl_interface::GeometricPoseConstraintPlanningContext, ompl_interface::OMPLPlanningContext);
+CLASS_LOADER_REGISTER_CLASS(ompl_interface::GeometricFixedPosePlanningContext, ompl_interface::OMPLPlanningContext);

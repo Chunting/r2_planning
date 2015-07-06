@@ -1,0 +1,6 @@
+<library path="libmoveit_ompl_fixed_pose_interface">
+  <class name="ompl_interface/GeometricFixedPosePlanningContext" type="ompl_interface::GeometricFixedPosePlanningContext" base_class_type="ompl_interface::OMPLPlanningContext">
+    <description>
+    </description>
+  </class>
+</library>

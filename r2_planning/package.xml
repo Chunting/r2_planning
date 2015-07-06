@@ -8,7 +8,7 @@
   <buildtool_depend>catkin</buildtool_depend>
 
   <run_depend>moveit_ompl_constrained_interface</run_depend>
-  <run_depend>moveit_ompl_pose_constraint_interface</run_depend>
+  <run_depend>moveit_ompl_fixed_pose_interface</run_depend>
   <run_depend>r2_tree_kinematics</run_depend>
   <run_depend>moveit_r2_kinematics</run_depend>
   <run_depend>moveit_r2_constraint_sampler</run_depend>
