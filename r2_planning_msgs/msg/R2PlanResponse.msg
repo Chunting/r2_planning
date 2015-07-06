@@ -1,0 +1,16 @@
+# This message is modeled after moveit_msgs/MotionPlanResponse
+
+# The state of the robot at the start of the trajectory
+moveit_msgs/RobotState trajectory_start
+
+# The group used for planning (usually the same as in the request);  NEEDED?
+string group_name
+
+# A solution trajectory, if found
+moveit_msgs/RobotTrajectory trajectory
+
+# Planning time (seconds)
+float64 planning_time
+
+# Error code - encodes the overall reason for failure
+moveit_msgs/MoveItErrorCodes error_code

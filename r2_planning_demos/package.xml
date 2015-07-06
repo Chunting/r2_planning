@@ -9,6 +9,9 @@
   <buildtool_depend>catkin</buildtool_depend>
 
   <build_depend>r2_planning_interface</build_depend>
+  <build_depend>r2_planning_msgs</build_depend>
+
   <run_depend>r2_planning_interface</run_depend>
+  <run_depend>r2_planning_msgs</run_depend>
 
 </package>

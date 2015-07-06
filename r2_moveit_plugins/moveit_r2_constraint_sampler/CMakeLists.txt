@@ -28,6 +28,10 @@ link_directories(${catkin_LIBRARY_DIRS})
 add_library(moveit_r2_constraint_sampler src/r2_constraint_sampler.cpp)
 target_link_libraries(moveit_r2_constraint_sampler ${catkin_LIBRARIES})
 
-install(TARGETS moveit_r2_constraint_sampler LIBRARY DESTINATION lib)
+install (TARGETS ${PROJECT_NAME}
+         LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(DIRECTORY include/ DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+
 install(FILES moveit_r2_constraint_sampler_plugin_description.xml
         DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

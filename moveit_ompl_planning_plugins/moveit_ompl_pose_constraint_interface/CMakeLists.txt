@@ -44,7 +44,7 @@ target_link_libraries(moveit_ompl_pose_constraint_interface ${catkin_LIBRARIES} 
 install (TARGETS moveit_ompl_pose_constraint_interface
          LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
          RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
-install(DIRECTORY include/ DESTINATION include)
+install(DIRECTORY include/ DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
 
 install(FILES ompl_pose_constraint_planning_plugin_description.xml
         DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

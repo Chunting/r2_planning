@@ -389,7 +389,7 @@ void R2Interface::enableCollisionChecking(const std::string& link1, const std::s
     if (waitForAck)
     {
         double waitTime = 10000; // us
-        double maxWait = 2000000; // us (1 sec)
+        double maxWait = 2000000; // us (2 sec)
         double wait = 0.0;
         while (planningSceneDirty_ && wait < maxWait)  // don't actually wait forever
         {
@@ -407,6 +407,50 @@ void R2Interface::enableCollisionChecking(const std::string& link1, const std::s
 
         if (planningSceneDirty_)
             ROS_WARN("%s: ACK timeout exceeded for %s and %s", __FUNCTION__, link1.c_str(), link2.c_str());
+    }
+}
+
+void R2Interface::enableCollisionChecking(const std::vector<std::string> bodies, bool allow, bool waitForAck)
+{
+    if (bodies.size() < 2)
+        return;
+
+    collision_detection::AllowedCollisionMatrix acm(getPlanningScene()->getAllowedCollisionMatrix());
+    for(size_t i = 0; i < bodies.size(); ++i)
+        for(size_t j = i+1; j < bodies.size(); ++j)
+            acm.setEntry(bodies[i], bodies[j], allow);
+
+    moveit_msgs::PlanningScene scene_msg;
+    getPlanningScene()->getPlanningSceneMsg(scene_msg);
+    acm.getMessage(scene_msg.allowed_collision_matrix);
+    scene_msg.is_diff = true;
+
+    planningSceneDirty_ = true;
+    scenePublisher_.publish(scene_msg);
+
+    if (waitForAck)
+    {
+        double waitTime = 10000; // us
+        double maxWait = 2000000; // us (2 sec)
+        double wait = 0.0;
+        while (planningSceneDirty_ && wait < maxWait)  // don't actually wait forever
+        {
+            usleep(waitTime);
+            wait += waitTime;
+
+            if (!planningSceneDirty_)  // make sure update included our matrix change
+            {
+                collision_detection::AllowedCollisionMatrix acm(getPlanningScene()->getAllowedCollisionMatrix());
+                collision_detection::AllowedCollision::Type collisionType = allow ? collision_detection::AllowedCollision::ALWAYS : collision_detection::AllowedCollision::NEVER;
+                for(size_t i = 0; i < bodies.size(); ++i)
+                    for(size_t j = i+1; j < bodies.size(); ++j)
+                        if (!acm.getEntry(bodies[i], bodies[j], collisionType))
+                            planningSceneDirty_ = true;
+            }
+        }
+
+        if (planningSceneDirty_)
+            ROS_WARN("%s: ACK timeout exceeded", __FUNCTION__);
     }
 }
 

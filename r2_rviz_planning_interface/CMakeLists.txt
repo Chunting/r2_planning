@@ -36,6 +36,12 @@ qt4_wrap_cpp(MOC_SOURCES ${QT_MOC_HEADERS})
 add_library(r2_rviz_planning_interface src/RVizPlanningInterface.cpp ${MOC_SOURCES})
 target_link_libraries(r2_rviz_planning_interface ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${QT_LIBRARIES})
 
+install (TARGETS ${PROJECT_NAME}
+         LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(DIRECTORY include/ DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+install(DIRECTORY icons/ DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+
 install(FILES
   r2_rviz_plugin_description.xml
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
