@@ -34,7 +34,7 @@
 
 /* Author: Ryan Luna */
 
-#include "moveit_ompl_interpolation_interface/GeometricPoseConstraintPlanningContext.h"
+#include "moveit_ompl_pose_constraint_interface/GeometricPoseConstraintPlanningContext.h"
 #include "moveit/ompl_interface/parameterization/joint_space/joint_model_state_space.h"
 #include "moveit_ompl_components/LinearMotionValidator.h"
 #include "moveit_ompl_components/CartesianDistanceOptimizationObjective.h"
