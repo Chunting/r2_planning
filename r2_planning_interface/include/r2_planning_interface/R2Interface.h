@@ -103,9 +103,10 @@ public:
     // Add an obstacle to the scene
     void addObstacleToPlanningScene(const moveit_msgs::CollisionObject& obstacle);
 
-    //void getAllowedCollisionMatrix(collision_detection::AllowedCollisionMatrix& acm);
-    //void setAllowedCollisionMatrix(const collision_detection::AllowedCollisionMatrix& acm);
+    // Enable/disable collisions between link1 and link2.
     void enableCollisionChecking(const std::string& link1, const std::string& link2, bool allow, bool waitForAck=false);
+    // Enable/disable collisions between all pairs of bodies
+    void enableCollisionChecking(const std::vector<std::string> bodies, bool allow, bool waitForAck=false);
 
     // Attach/detach an object from the robot
     void attachObjectToRobot(const moveit_msgs::AttachedCollisionObject& attached_obj);

@@ -34,3 +34,6 @@ target_link_libraries(executor ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 add_executable(spawn_world src/spawn_world.cpp)
 target_link_libraries(spawn_world ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+
+add_executable(r2_planning_server src/planning_server.cpp)
+target_link_libraries(r2_planning_server ${catkin_LIBRARIES} ${Boost_LIBRARIES})

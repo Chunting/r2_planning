@@ -1,0 +1,15 @@
+<package>
+  <name>r2_planning_msgs</name>
+  <version>0.1.0</version>
+  <description>Messages and services used for R2 motion planning </description>
+  <author email="rluna@rice.edu">Ryan Luna</author>
+  <maintainer email="rluna@rice.edu">Ryan Luna</maintainer>
+
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>moveit_msgs</build_depend>
+  <run_depend>moveit_msgs</run_depend>
+
+</package>
