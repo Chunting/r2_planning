@@ -1,7 +1,7 @@
 <package>
-  <name>moveit_ompl_pose_constraint_interface</name>
+  <name>moveit_ompl_fixed_pose_interface</name>
   <version>0.1.0</version>
-  <description>Interface for OMPL planning with a single pose constraint</description>
+  <description>Interface for OMPL planning with exactly one fixed pose constraint</description>
   <author email="rluna@rice.edu">Ryan Luna</author>
   <maintainer email="rluna@rice.edu">Ryan Luna</maintainer>
 
@@ -20,7 +20,7 @@
   <run_depend>moveit_ompl_components</run_depend>
 
   <export>
-    <moveit_ompl_planning_interface plugin="${prefix}/ompl_pose_constraint_planning_plugin_description.xml"/>
+    <moveit_ompl_planning_interface plugin="${prefix}/ompl_fixed_pose_planning_plugin_description.xml.xml"/>
   </export>
 
 </package>

@@ -82,7 +82,7 @@ static ompl::base::PlannerPtr allocateHiLo(const ompl::base::SpaceInformationPtr
     return planner;
 }
 
-R2GeometricPlanningContext::R2GeometricPlanningContext() : GeometricPoseConstraintPlanningContext()
+R2GeometricPlanningContext::R2GeometricPlanningContext() : GeometricFixedPosePlanningContext()
 {
     GeometricPlanningContext::registerPlannerAllocator("geometric::HiLo", boost::bind(&allocateHiLo<ompl::geometric::HiLo>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematics::KinematicsBasePtr(), kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr()));
     GeometricPlanningContext::registerPlannerAllocator("geometric::BiHiLo", boost::bind(&allocateHiLo<ompl::geometric::BiHiLo>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematics::KinematicsBasePtr(), kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr()));
@@ -131,7 +131,7 @@ void R2GeometricPlanningContext::initialize(const std::string& ros_namespace, co
     else
         left_leg_kinematics_ = slv.first.solver_instance_;
 
-    GeometricPoseConstraintPlanningContext::initialize(ros_namespace, spec);
+    GeometricFixedPosePlanningContext::initialize(ros_namespace, spec);
 
     // Configure the Cartesian space interpolator to do "normal" interpolation
     // for the following revolute joints:
@@ -153,7 +153,7 @@ void R2GeometricPlanningContext::allocateStateSpace(const ModelBasedStateSpaceSp
 {
     //JointModelStateSpacePtr state_space_(new JointModelStateSpace(state_space_spec));
     //mbss_ = boost::static_pointer_cast<ModelBasedStateSpace>(state_space_);
-    GeometricPoseConstraintPlanningContext::allocateStateSpace(state_space_spec);
+    GeometricFixedPosePlanningContext::allocateStateSpace(state_space_spec);
 
     // THIS IS ABSOLUTELY HORRIBLE.  MOVE THIS OUT OF HERE.
     // Do this (again) here to avoid seg fault because state space is not allocated in constructor and bind latches the parameter at execution time

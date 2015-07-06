@@ -34,8 +34,8 @@
 
 /* Author: Ryan Luna */
 
-#ifndef MOVEIT_OMPL_INTERFACE_GEOMETRIC_POSE_CONSTRAINT_PLANNING_CONTEXT_
-#define MOVEIT_OMPL_INTERFACE_GEOMETRIC_POSE_CONSTRAINT_PLANNING_CONTEXT_
+#ifndef MOVEIT_OMPL_INTERFACE_GEOMETRIC_FIXED_POSE_PLANNING_CONTEXT_
+#define MOVEIT_OMPL_INTERFACE_GEOMETRIC_FIXED_POSE_PLANNING_CONTEXT_
 
 #include "moveit/ompl_interface/geometric_planning_context.h"
 #include "moveit_ompl_components/CartesianSpaceInterpolator.h"
@@ -46,12 +46,12 @@ namespace ompl_interface
 {
 
 /// \brief Definition of a geometric planning context that respects a single pose constraint
-class GeometricPoseConstraintPlanningContext : public GeometricPlanningContext
+class GeometricFixedPosePlanningContext : public GeometricPlanningContext
 {
 public:
-    GeometricPoseConstraintPlanningContext();
+    GeometricFixedPosePlanningContext();
 
-    virtual ~GeometricPoseConstraintPlanningContext();
+    virtual ~GeometricFixedPosePlanningContext();
 
     virtual std::string getDescription();
 

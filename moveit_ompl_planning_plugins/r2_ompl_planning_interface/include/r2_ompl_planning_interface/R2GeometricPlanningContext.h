@@ -37,13 +37,13 @@
 #ifndef MOVEIT_OMPL_INTERFACE_R2_GEOMETRIC_PLANNING_CONTEXT_
 #define MOVEIT_OMPL_INTERFACE_R2_GEOMETRIC_PLANNING_CONTEXT_
 
-#include "moveit_ompl_pose_constraint_interface/GeometricPoseConstraintPlanningContext.h"
+#include "moveit_ompl_fixed_pose_interface/GeometricFixedPosePlanningContext.h"
 
 namespace ompl_interface
 {
 
 /// \brief Definition of a geometric planning context that respects a single pose constraint
-class R2GeometricPlanningContext : public GeometricPoseConstraintPlanningContext
+class R2GeometricPlanningContext : public GeometricFixedPosePlanningContext
 {
 public:
     R2GeometricPlanningContext();
