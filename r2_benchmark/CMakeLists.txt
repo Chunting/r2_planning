@@ -30,3 +30,11 @@ link_directories(${catkin_LIBRARY_DIRS})
 
 add_executable(iss_climbing_benchmark src/iss_climbing_benchmark.cpp)
 target_link_libraries(iss_climbing_benchmark ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+
+install (TARGETS iss_climbing_benchmark
+         LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(DIRECTORY include/ DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+
+install(DIRECTORY launch DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+install(DIRECTORY benchmark DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

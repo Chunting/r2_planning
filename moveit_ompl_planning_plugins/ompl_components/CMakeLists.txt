@@ -51,5 +51,4 @@ target_link_libraries(moveit_ompl_components ${catkin_LIBRARIES} ${Boost_LIBRARI
 install (TARGETS moveit_ompl_components
          LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
          RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
-install(DIRECTORY include/ DESTINATION include)
-
+install(DIRECTORY include/ DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
