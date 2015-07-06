@@ -1,0 +1,26 @@
+<package>
+  <name>r2_planning</name>
+  <version>0.1.0</version>
+  <description>This is a metapackage for all r2_planning components.</description>
+  <maintainer email="rluna@rice.edu">Ryan Luna</maintainer>
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <run_depend>moveit_ompl_constrained_interface</run_depend>
+  <run_depend>moveit_ompl_pose_constraint_interface</run_depend>
+  <run_depend>r2_tree_kinematics</run_depend>
+  <run_depend>moveit_r2_kinematics</run_depend>
+  <run_depend>moveit_r2_constraint_sampler</run_depend>
+  <run_depend>moveit_r2_pose_sampler</run_depend>
+  <run_depend>r2_planning_interface</run_depend>
+  <run_depend>r2_planning_moveit_config</run_depend>
+  <run_depend>r2_planning_demos</run_depend>
+  <run_depend>r2_planning_msgs</run_depend>
+  <run_depend>r2_rviz_planning_interface</run_depend>
+  <run_depend>r2_simplified_urdf</run_depend>
+
+  <export>
+    <metapackage/>
+  </export>
+</package>
