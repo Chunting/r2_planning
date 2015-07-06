@@ -1,4 +1,4 @@
-<library path="libmoveit_ompl_pose_constraint_interface">
+<library path="libmoveit_ompl_fixed_pose_interface">
   <class name="ompl_interface/GeometricPoseConstraintPlanningContext" type="ompl_interface::GeometricPoseConstraintPlanningContext" base_class_type="ompl_interface::OMPLPlanningContext">
     <description>
     </description>
