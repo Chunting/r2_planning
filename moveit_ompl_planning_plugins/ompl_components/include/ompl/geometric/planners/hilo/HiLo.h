@@ -38,10 +38,11 @@
 #define OMPL_GEOMETRIC_PLANNERS_HILO_HILO_
 
 #include "ompl/geometric/planners/PlannerIncludes.h"
-// #include "ompl/base/ProjectionEvaluator.h"
 // #include "ompl/base/OptimizationObjective.h"
 #include "ompl/geometric/planners/hilo/HiLoDecomposition.h"
-//#include "ompl/geometric/planners/hilo/HiLoGraph.h"
+
+#include <boost/thread.hpp>
+
 
 namespace ompl
 {
@@ -101,7 +102,7 @@ namespace ompl
             void freeMemory();
 
             // Compute a new lead in the decomposition given current tree
-            void computeLead(std::vector<int>& lead);
+            void computeLead(std::vector<int>& lead, const base::PlannerTerminationCondition &ptc);
 
             // Select a region from the given lead to expand from
             //int selectRegion(const std::vector<int>& lead);
@@ -124,7 +125,10 @@ namespace ompl
             void getNeighbors(int rid, std::vector<std::pair<int, double> >& neighbors) const;
 
             // Shortest (weight) path from r1 to r2
-            bool shortestPath(int r1, int r2, std::vector<int>& path);
+            bool shortestPath(int r1, int r2, std::vector<int>& path, const base::PlannerTerminationCondition &ptc);
+
+            // Thread that gets us goal states
+            void getGoalStates(const base::PlannerTerminationCondition &ptc, unsigned int maxGoalStates);
 
 
             HiLoDecompositionPtr decomposition_;
@@ -147,6 +151,7 @@ namespace ompl
             std::vector<std::vector<Motion*> > motionsPerRegion_;
             std::vector<std::pair<Motion*, int> > startMotions_;
             std::vector<int> goalRegions_;
+            std::vector<base::State*> goalStates_;
 
             std::vector<double> regionWeights_;
             // number of times a region has been selected for expansion
@@ -157,6 +162,9 @@ namespace ompl
             // Scratch space for shortest path computation
             std::vector<int> predecessors_;
             std::vector<bool> closedList_;
+
+            boost::thread goalStateThread_;
+            bool kill_;
         };
     }
 }
