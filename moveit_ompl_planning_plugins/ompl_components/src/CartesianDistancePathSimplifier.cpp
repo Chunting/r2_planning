@@ -40,23 +40,6 @@
 namespace ompl_interface
 {
 
-CartesianDistancePathSimplifier::CartesianDistancePathSimplifier(ompl::base::SpaceInformationPtr si) : si_(si)
-{
-    mbss_ = dynamic_cast<ModelBasedStateSpace*>(si_->getStateSpace().get());
-    if (!mbss_)
-    {
-        ROS_ERROR("Failed to cast StateSpace to type ModelBasedStateSpace");
-        throw;
-    }
-
-    free_interpolator_ = true;
-    interpolator_ = new CartesianSpaceInterpolator(mbss_->getJointModelGroup());
-
-    work_state_.reset(new robot_state::RobotState(mbss_->getRobotModel()));
-    work_state_->setToDefaultValues(); // VERY IMPORTANT
-    work_state_->update();
-}
-
 CartesianDistancePathSimplifier::CartesianDistancePathSimplifier(ompl::base::SpaceInformationPtr si, CartesianSpaceInterpolator* interpolator) : si_(si)
 {
     mbss_ = dynamic_cast<ModelBasedStateSpace*>(si_->getStateSpace().get());
@@ -66,8 +49,16 @@ CartesianDistancePathSimplifier::CartesianDistancePathSimplifier(ompl::base::Spa
         throw;
     }
 
-    free_interpolator_ = false;
-    interpolator_ = interpolator;
+    if (interpolator)
+    {
+        free_interpolator_ = false;
+        interpolator_ = interpolator;
+    }
+    else
+    {
+        free_interpolator_ = true;
+        interpolator_ = new CartesianSpaceInterpolator(mbss_->getJointModelGroup());
+    }
     assert(interpolator_);
 
     work_state_.reset(new robot_state::RobotState(mbss_->getRobotModel()));

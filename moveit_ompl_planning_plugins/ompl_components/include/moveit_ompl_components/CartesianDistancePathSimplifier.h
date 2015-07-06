@@ -54,8 +54,8 @@ namespace ompl_interface
 class CartesianDistancePathSimplifier
 {
 public:
-    CartesianDistancePathSimplifier(ompl::base::SpaceInformationPtr si);
-    CartesianDistancePathSimplifier(ompl::base::SpaceInformationPtr si, CartesianSpaceInterpolator* interpolator);
+    //CartesianDistancePathSimplifier(ompl::base::SpaceInformationPtr si);
+    CartesianDistancePathSimplifier(ompl::base::SpaceInformationPtr si, CartesianSpaceInterpolator* interpolator = NULL);
     ~CartesianDistancePathSimplifier();
 
     void setPathConstraints(kinematic_constraints::KinematicConstraintSetPtr constraints);

@@ -65,6 +65,7 @@ void ompl::geometric::HiLo::clear()
 
     startMotions_.clear();
     goalRegions_.clear();
+    goalStates_.clear();
     numMotions_ = 0;
 
     regionWeights_.assign(decomposition_->getNumRegions(), std::numeric_limits<double>::infinity());
@@ -83,6 +84,9 @@ void ompl::geometric::HiLo::freeMemory()
         }
         motionsPerRegion_[i].clear();
     }
+
+    for(size_t i = 0; i < goalStates_.size(); ++i)
+        si_->freeState(goalStates_[i]);
 }
 
 void ompl::geometric::HiLo::setDecomposition(const HiLoDecompositionPtr& decomp)
@@ -157,17 +161,40 @@ ompl::base::PlannerStatus ompl::geometric::HiLo::solve(const base::PlannerTermin
         return base::PlannerStatus::INVALID_START;
     }
 
-    if (goalRegions_.empty())
+    // if (goalRegions_.empty())
+    // {
+    //     if (const base::State *g = pis_.nextGoal(ptc))
+    //         goalRegions_.push_back(decomposition_->locateRegion(g));
+    //     else
+    //     {
+    //         OMPL_ERROR("%s: Unable to sample a valid goal state", getName().c_str());
+    //         return base::PlannerStatus::INVALID_GOAL;
+    //     }
+    // }
+
+    // while(const base::State *g = pis_.nextGoal(ptc))
+    // {
+    //     goalStates_.push_back(si_->cloneState(g));
+    //     goalRegions_.push_back(decomposition_->locateRegion(g));
+    // }
+
+    unsigned int maxGoalStates = 10;
+    kill_ = false;
+    goalStateThread_ = boost::thread(boost::bind(&ompl::geometric::HiLo::getGoalStates, this, ptc, maxGoalStates));
+
+    while (goalStates_.size() == 0)
     {
-        if (const base::State *g = pis_.nextGoal(ptc))
-            goalRegions_.push_back(decomposition_->locateRegion(g));
-        else
+        if (ptc)
         {
+            kill_ = true;
+            goalStateThread_.join();
             OMPL_ERROR("%s: Unable to sample a valid goal state", getName().c_str());
             return base::PlannerStatus::INVALID_GOAL;
         }
+        usleep(10000);
     }
 
+    // Must do this AFTER at least one goal state has been found
     for(size_t i = 0; i < startMotions_.size(); ++i)
         updateRegionWeight(startMotions_[i].second);
 
@@ -189,10 +216,7 @@ ompl::base::PlannerStatus ompl::geometric::HiLo::solve(const base::PlannerTermin
     while (!ptc && !solved)
     {
         std::vector<int> lead;
-        computeLead(lead);
-        numLeads++;
-
-        assert(lead.size() > 1);
+        computeLead(lead, ptc);
 
         #ifdef DEBUG_LEADS
         for(size_t i = 0; i < lead.size(); ++i)
@@ -200,13 +224,35 @@ ompl::base::PlannerStatus ompl::geometric::HiLo::solve(const base::PlannerTermin
         fout << std::endl;
         #endif
 
+        numLeads++;
+
         unsigned int numExpansions = 0;
         while (!ptc && !solved && numExpansions < maxRegionExpansions_)
         {
-            //solution = expandFromRegion(ptc, selectRegion(lead), maxTreeExpansions);
-
+            assert(lead.size() > 1);
             int from, to;
-            selectRegion(lead, from, to);
+            if (numExpansions == 0)
+            {
+                // first try, select the 'end' of the lead
+                from = 0;
+                for(from = 1; from < lead.size(); ++from)
+                    if (motionsPerRegion_[lead[from]].size() == 0)
+                    {
+                        from--;
+                        break;
+                    }
+
+                if (from == lead.size())
+                    from = lead.size()-2;
+
+                to = lead[from+1];
+                from = lead[from];
+
+                assert(motionsPerRegion_[from].size());
+            }
+            else
+                selectRegion(lead, from, to);
+
             solution = expandFromRegion(ptc, from, to, maxTreeExpansions);
             numExpansions++;
 
@@ -217,7 +263,10 @@ ompl::base::PlannerStatus ompl::geometric::HiLo::solve(const base::PlannerTermin
     fout.close();
     #endif
 
-    OMPL_INFORM("%s: Created %u states using %u total leads", getName().c_str(), numMotions_, numLeads);
+    OMPL_INFORM("%s: Created %u states using %u leads", getName().c_str(), numMotions_, numLeads);
+
+    kill_ = true;
+    goalStateThread_.join();
 
     if (solved)
     {
@@ -239,7 +288,7 @@ ompl::base::PlannerStatus ompl::geometric::HiLo::solve(const base::PlannerTermin
     return ompl::base::PlannerStatus::TIMEOUT;
 }
 
-void ompl::geometric::HiLo::computeLead(std::vector<int>& lead)
+void ompl::geometric::HiLo::computeLead(std::vector<int>& lead, const base::PlannerTerminationCondition &ptc)
 {
     int start, end;
     int tries = 0;
@@ -251,68 +300,47 @@ void ompl::geometric::HiLo::computeLead(std::vector<int>& lead)
         end = goalRegions_[rng_.uniformInt(0, goalRegions_.size()-1)];
         tries++;
 
-        success = shortestPath(start, end, lead);
+        success = shortestPath(start, end, lead, ptc) && lead.size() > 1;
     }
-    while (!success && tries < maxTries);
+    while (!ptc && !success && tries < maxTries);
 
-    if (!success)
-        throw ompl::Exception("%s: Failed to compute lead", getName().c_str());
+    //if (!success)
+    //    throw ompl::Exception("%s: Failed to compute lead", getName().c_str());
 }
-
-/*struct RegionSorter
-{
-    RegionSorter(const std::vector<double>& weights) : weights_(weights) {}
-
-    bool operator() (int r1, int r2) const
-    {
-        return 1.0 / weights_[r1] < 1.0 / weights_[r2];
-    }
-
-    const std::vector<double>& weights_;
-};
-
-int ompl::geometric::HiLo::selectRegion(const std::vector<int>& lead)
-{
-    // Probabilistically select region based on inverse weight
-    std::vector<int> sortedLead;
-    double totalWeight = 0.0;
-    for(size_t i = 0; i < lead.size(); ++i)
-    {
-        if (motionsPerRegion_[lead[i]].size() == 0)
-            break;
-        sortedLead.push_back(lead[i]);
-        totalWeight += 1.0 / regionWeights_[lead[i]];
-        //std::cout << " (" << lead[i] << ") Weight " << i+1 << " of " << lead.size() << " is " << regionWeights_[lead[i]] << std::endl;
-    }
-
-    assert(sortedLead.size() > 0);
-
-    double r = rng_.uniformReal(0.0, totalWeight);
-
-    //std::cout << "Total weight: " << totalWeight << "   r = " << r << std::endl;
-
-    RegionSorter sorter(regionWeights_);
-    std::sort(sortedLead.begin(), sortedLead.end(), sorter);
-
-    int reg = -1;
-    double w = 0.0;
-    for(size_t i = 0; i < sortedLead.size(); ++i)
-    {
-        w += 1.0 / regionWeights_[sortedLead[i]];
-        if (r < w)
-        {
-            reg = sortedLead[i];
-            break;
-        }
-    }
-
-    assert(reg != -1);
-    return reg;
-}*/
 
 void ompl::geometric::HiLo::selectRegion(const std::vector<int>& lead, int& from, int& to)
 {
     std::vector<double> leadWeights;
+    double w = 0.0;
+    for(size_t i = 0; i < lead.size(); ++i)
+    {
+        if (motionsPerRegion_[lead[i]].size() == 0)
+            break;
+
+        w += 1.0 / regionWeights_[lead[i]];
+        leadWeights.push_back(w);
+    }
+    assert(leadWeights.size() > 0);
+
+    double totalWeight = leadWeights.back();
+
+    // leadWeights is sorted in ascending order, by construction
+    double r = rng_.uniformReal(0.0, totalWeight);
+    std::vector<double>::iterator it = std::lower_bound(leadWeights.begin(), leadWeights.end(), r);
+    assert(it != leadWeights.end());
+
+    int idx = it - leadWeights.begin();
+    assert(idx >= 0 && idx <= leadWeights.size());
+
+
+    if (idx == lead.size()-1)
+        idx--;
+    from = lead[idx];
+    // sample any part of the lead after "from"
+    //to = lead[rng_.uniformInt(idx+1,  lead.size()-1)];
+    to = lead[idx+1];
+
+    /*std::vector<double> leadWeights;
     double w = 0.0;
     for(size_t i = 0; i < lead.size(); ++i)
     {
@@ -349,7 +377,7 @@ void ompl::geometric::HiLo::selectRegion(const std::vector<int>& lead, int& from
         throw;
 
     from = lead[idx];
-    to = lead[idx+1];
+    to = lead[idx+1];*/
 }
 
 /*ompl::geometric::HiLo::Motion* ompl::geometric::HiLo::expandFromRegion(const base::PlannerTerminationCondition &ptc, int region, int maxExpansions)
@@ -436,7 +464,7 @@ ompl::geometric::HiLo::Motion* ompl::geometric::HiLo::expandFromRegion(const bas
     assert(motionsPerRegion_[from].size() > 0);
 
     base::Goal* goal = pdef_->getGoal().get();
-    base::GoalSampleableRegion* gsr = dynamic_cast<base::GoalSampleableRegion*>(goal);
+    //base::GoalSampleableRegion* gsr = dynamic_cast<base::GoalSampleableRegion*>(goal);
 
     base::State* xstate = si_->allocState();
 
@@ -448,24 +476,30 @@ ompl::geometric::HiLo::Motion* ompl::geometric::HiLo::expandFromRegion(const bas
     {
         Motion* existing = selectMotionFromRegion(from);
 
-        // Sample a state in region to (with goal bias)
-        if (gsr && rng_.uniform01() < goalBias_ && gsr->canSample())
+        if (rng_.uniform01() < goalBias_)
         {
-            gsr->sampleGoal(xstate);
-
-            // // Make sure goal states are diverse
-            // bool unique = true;
-            // for(size_t i = 0; i < goalMotions_.size() && unique; ++i)
-            //     unique = si_->distance(goalMotions_[i]->state, xstate) > magic::UNIQUE_GOAL_DISTANCE;
-
-            // // If we cannot find a unique goal, sample an existing one
-            // if (!unique)
-            // {
-            //     exists = true;
-            //     existsIdx = rng_.uniformInt(0, goalMotions_.size()-1);
-            //     si_->copyState(xstate, goalMotions_[existsIdx]->state);
-            // }
+            // select a goal state
+            si_->copyState(xstate, goalStates_[rng_.uniformInt(0, goalStates_.size()-1)]);
         }
+
+        // // Sample a state in region to (with goal bias)
+        // if (gsr && rng_.uniform01() < goalBias_ && gsr->canSample())
+        // {
+        //     gsr->sampleGoal(xstate);
+
+        //     // // Make sure goal states are diverse
+        //     // bool unique = true;
+        //     // for(size_t i = 0; i < goalMotions_.size() && unique; ++i)
+        //     //     unique = si_->distance(goalMotions_[i]->state, xstate) > magic::UNIQUE_GOAL_DISTANCE;
+
+        //     // // If we cannot find a unique goal, sample an existing one
+        //     // if (!unique)
+        //     // {
+        //     //     exists = true;
+        //     //     existsIdx = rng_.uniformInt(0, goalMotions_.size()-1);
+        //     //     si_->copyState(xstate, goalMotions_[existsIdx]->state);
+        //     // }
+        // }
         else
            if (!decomposition_->sampleFromRegion(to, xstate, existing->state))
             continue;
@@ -521,15 +555,39 @@ ompl::geometric::HiLo::Motion* ompl::geometric::HiLo::selectMotionFromRegion(int
 
 void ompl::geometric::HiLo::updateRegionWeight(int region)
 {
-    // weight is the distance estimate of the region to the goal, weighted by selections^2 / motions^2;
-    double h = decomposition_->distanceHeuristic(region, goalRegions_[0]); // TODO: make better.  Cache this somewhere?
     double r = (1.0 + regionSelections_[region] * regionSelections_[region]) / (1.0 + regionMotions_[region] * regionMotions_[region]);
+    // r is intended to be a weight on the heuristic.  To keep the heuristic admissible, cap r at 1.0
+    r = std::min(1.0, r);
+    regionWeights_[region] = r;
 
-    // std::cout << __FUNCTION__ << " (" << region << ")" << std::endl;
-    // std::cout << "  h = " << h << "   r = " << r << std::endl;
 
-    // add 1 to heuristic to prohibit weight of zero at goal
-    regionWeights_[region] = (1.0 + h) * r;
+    // double h = std::numeric_limits<double>::infinity();
+
+    // for(size_t i = 0; i < goalRegions_.size(); ++i)
+    // {
+    //     double tmp = decomposition_->distanceHeuristic(region, goalRegions_[i]);
+    //     if (tmp < h)
+    //         h = tmp;
+    // }
+
+    // double r = (1.0 + regionSelections_[region] * regionSelections_[region]) / (1.0 + regionMotions_[region] * regionMotions_[region]);
+
+    // // r is intended to be a weight on the heuristic.  To keep the heuristic admissible, cap r at 1.0
+    // r = std::min(1.0, r);
+
+    // // add 1 to heuristic to prohibit weight of zero at goal
+    // regionWeights_[region] = (1.0 + h) * r;
+
+
+    // // weight is the distance estimate of the region to the goal, weighted by selections^2 / motions^2;
+    // double h = decomposition_->distanceHeuristic(region, goalRegions_[0]); // TODO: make better.  Cache this somewhere?
+    // double r = (1.0 + regionSelections_[region] * regionSelections_[region]) / (1.0 + regionMotions_[region] * regionMotions_[region]);
+
+    // // std::cout << __FUNCTION__ << " (" << region << ")" << std::endl;
+    // // std::cout << "  h = " << h << "   r = " << r << std::endl;
+
+    // // add 1 to heuristic to prohibit weight of zero at goal
+    // regionWeights_[region] = (1.0 + h) * r;
 }
 
 void ompl::geometric::HiLo::getNeighbors(int rid, std::vector<std::pair<int, double> >& neighbors) const
@@ -542,6 +600,52 @@ void ompl::geometric::HiLo::getNeighbors(int rid, std::vector<std::pair<int, dou
         double w = (regionWeights_[nbrs[i]] != std::numeric_limits<double>::infinity()) ? regionWeights_[nbrs[i]] : 1.0;
         neighbors.push_back(std::make_pair(nbrs[i], w));
     }
+}
+
+void ompl::geometric::HiLo::getGoalStates(const base::PlannerTerminationCondition &ptc, unsigned int maxGoalStates)
+{
+    base::Goal* goal = pdef_->getGoal().get();
+    base::GoalSampleableRegion* gsr = dynamic_cast<base::GoalSampleableRegion*>(goal);
+    if (!gsr)
+    {
+        OMPL_ERROR("Cannot cast goal to GoalSampleableRegion.  Goal sampling thread not running");
+        return;
+    }
+
+    OMPL_INFORM("%s: Goal sampling thread active", getName().c_str());
+
+    base::State* xstate = si_->allocState();
+
+    while(!ptc && !kill_ && goalStates_.size() < maxGoalStates && gsr->couldSample())
+    {
+        if (!gsr->canSample())  // no goal states available yet
+            usleep(1000);
+        else
+        {
+            gsr->sampleGoal(xstate);
+
+            double dist = std::numeric_limits<double>::infinity();
+            for(size_t i = 0; i < goalStates_.size(); ++i)
+            {
+                double d = si_->distance(goalStates_[i], xstate);
+                if (d < dist)
+                    dist = d;
+            }
+
+            // Keep goals diverse
+            // TODO: GoalLazySamples does this for us.
+            if (dist > 0.1)
+            {
+                goalStates_.push_back(si_->cloneState(xstate));
+                goalRegions_.push_back(decomposition_->locateRegion(xstate));
+            }
+        }
+    }
+
+    if (goalStates_.size() >= maxGoalStates)
+        OMPL_INFORM("%s: Reached max state count in goal sampling thread", getName().c_str());
+
+    si_->freeState(xstate);
 }
 
 struct OpenListNode
@@ -559,7 +663,7 @@ struct OpenListNode
     }
 };
 
-bool ompl::geometric::HiLo::shortestPath(int r1, int r2, std::vector<int>& path)
+bool ompl::geometric::HiLo::shortestPath(int r1, int r2, std::vector<int>& path, const base::PlannerTerminationCondition &ptc)
 {
     if (r1 < 0 || r1 >= decomposition_->getNumRegions())
     {
@@ -573,12 +677,15 @@ bool ompl::geometric::HiLo::shortestPath(int r1, int r2, std::vector<int>& path)
         return false;
     }
 
+    //OMPL_WARN("Computing shortest path from %d to %d", r1, r2);
+
     // Initialize predecessors and open list
     std::fill(predecessors_.begin(), predecessors_.end(), -1);
     std::fill(closedList_.begin(), closedList_.end(), false);
 
     // Create empty open list
     std::priority_queue<OpenListNode> openList;
+    //std::set<int> openListEntries;
 
     // Add start node to open list
     OpenListNode start(r1);
@@ -586,13 +693,19 @@ bool ompl::geometric::HiLo::shortestPath(int r1, int r2, std::vector<int>& path)
     start.h = decomposition_->distanceHeuristic(r1, r2);
     start.parent = r1; // start has a self-transition to parent
     openList.push(start);
+    //openListEntries.insert(r1);
 
     // A* search
     bool solution = false;
     while (!openList.empty())
     {
+        if (ptc)
+            return false;
+
         OpenListNode node = openList.top();
         openList.pop();
+
+        //openListEntries.erase(node.id);
 
         // been here before
         if (closedList_[node.id])
@@ -615,7 +728,10 @@ bool ompl::geometric::HiLo::shortestPath(int r1, int r2, std::vector<int>& path)
         for(size_t i = 0; i < neighbors.size(); ++i)
         {
             // only add neighbors we have not visited
-            if (!closedList_[neighbors[i].first])
+            //if (!closedList_[neighbors[i].first])
+
+            // only add neighbors we have not visited and are not in open list already
+            if (!closedList_[neighbors[i].first] /*&& openListEntries.find(neighbors[i].first) == openListEntries.end()*/)
             {
                 OpenListNode nbr(neighbors[i].first);
                 nbr.g = node.g + neighbors[i].second;
@@ -623,6 +739,7 @@ bool ompl::geometric::HiLo::shortestPath(int r1, int r2, std::vector<int>& path)
                 nbr.parent = node.id;
 
                 openList.push(nbr);
+                //openListEntries.insert(neighbors[i].first);
             }
         }
     }
@@ -639,6 +756,8 @@ bool ompl::geometric::HiLo::shortestPath(int r1, int r2, std::vector<int>& path)
 
         path.insert(path.begin(), current); // add start state
     }
+
+    //OMPL_WARN("DONE");
 
     return solution;
 }
