@@ -43,6 +43,10 @@ target_link_libraries(r2_tree_kinematics_plugin ${catkin_LIBRARIES})
 #                                       src/nasa_robodyn/KdlTreeFk.cpp)
 #target_link_libraries(moveit_r2_chain_kinematics ${catkin_LIBRARIES})
 
-install(TARGETS r2_tree_kinematics_plugin LIBRARY DESTINATION lib)
+install (TARGETS r2_tree_kinematics_plugin
+         LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(DIRECTORY include/ DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+
 install(FILES moveit_r2_tree_kinematics_plugin_description.xml
         DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})

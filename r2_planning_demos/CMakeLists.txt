@@ -37,3 +37,10 @@ target_link_libraries(spawn_world ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 add_executable(r2_planning_server src/planning_server.cpp)
 target_link_libraries(r2_planning_server ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+
+install (TARGETS iss_navigation argos_demo localizer executor spawn_world r2_planning_server
+         LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+         RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(DIRECTORY include/ DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+install(DIRECTORY launch DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
+install(DIRECTORY world DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION})
