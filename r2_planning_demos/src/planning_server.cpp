@@ -224,7 +224,7 @@ protected:
                     secondary_orientation.header.frame_id = goal_pose.header.frame_id;
                     secondary_orientation.weight = 1.0;
 
-                    // set tolerances on orientation dimensions
+                    // set tolerances on orientation dimensions, 2pi if unconstrained
                     secondary_orientation.absolute_x_axis_tolerance = (secondary_xyzrpy[3] > -998 ? moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL : 6.283185);
                     secondary_orientation.absolute_y_axis_tolerance = (secondary_xyzrpy[4] > -998 ? moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL : 6.283185);
                     secondary_orientation.absolute_z_axis_tolerance = (secondary_xyzrpy[5] > -998 ? moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL : 6.283185);
@@ -323,7 +323,13 @@ protected:
         {
             resp.plan_response.trajectory_start = plan_resp.motion_plan_response.trajectory_start;
             resp.plan_response.group_name = plan_resp.motion_plan_response.group_name;
-            resp.plan_response.trajectory = plan_resp.motion_plan_response.trajectory;
+            resp.plan_response.visualization_trajectory = plan_resp.motion_plan_response.trajectory;
+
+            // Remove the body pose information from the robot trajectory.  This is not an actuable joint.
+            resp.plan_response.robot_trajectory = resp.plan_response.visualization_trajectory;
+            resp.plan_response.robot_trajectory.multi_dof_joint_trajectory.joint_names.clear();
+            resp.plan_response.robot_trajectory.multi_dof_joint_trajectory.points.clear();
+
             resp.plan_response.planning_time = plan_resp.motion_plan_response.planning_time;
             resp.plan_response.error_code = plan_resp.motion_plan_response.error_code;
 
@@ -375,7 +381,13 @@ protected:
         {
             resp.plan_response.trajectory_start = plan_resp.motion_plan_response.trajectory_start;
             resp.plan_response.group_name = plan_resp.motion_plan_response.group_name;
-            resp.plan_response.trajectory = plan_resp.motion_plan_response.trajectory;
+            resp.plan_response.visualization_trajectory = plan_resp.motion_plan_response.trajectory;
+
+            // Remove the body pose information from the robot trajectory.  This is not an actuable joint.
+            resp.plan_response.robot_trajectory = resp.plan_response.visualization_trajectory;
+            resp.plan_response.robot_trajectory.multi_dof_joint_trajectory.joint_names.clear();
+            resp.plan_response.robot_trajectory.multi_dof_joint_trajectory.points.clear();
+
             resp.plan_response.planning_time = plan_resp.motion_plan_response.planning_time;
             resp.plan_response.error_code = plan_resp.motion_plan_response.error_code;
 
