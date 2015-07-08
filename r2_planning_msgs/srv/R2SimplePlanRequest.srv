@@ -1,0 +1,64 @@
+# This service contains the definition for a request to the motion
+# planner and the output it provides
+
+##############
+#  REQUIRED  #
+##############
+
+# The name of the group to plan for
+string group_name
+
+# The name of the frame to move
+string goal_frame
+
+# Where the goal frame should move to
+geometry_msgs/PoseStamped goal_pose
+
+
+##############
+#  OPTIONAL  #
+##############
+
+# The joint positions for the initial state of the robot.
+# If unspecified, the current joint positions will be used
+moveit_msgs/RobotState start_state
+
+# Mark the given frame as the base frame.  This frame will not
+# move during planning.  The position of the frame is taken from
+# start_state (current state if start_state is unspecified)
+string base_frame
+
+# The name of the motion planner to use. If no planner is specified,
+# one will be selected given the request parameters
+string planner_id
+
+# If true, the planner will keep the torso upright at all times
+# Default is false.
+bool torsoUp
+
+# The name of a secondary frame to move.  Must be different from goal_frame
+string secondary_frame
+
+# The desired XYZ, RPY of the secondary_frame.  Must have length 6.
+# These values must be given in the same frame as goal_pose.
+# Use -999 for any values that are "don't cares".
+# Angles must be specified in radians.
+float64[] secondary_xyz_rpy
+
+# An optional set of updates to the AllowedCollisionMatrix.  Use this to enable/
+# disable collisions with handrails or other objects in the scene.
+CollisionUpdate[] collision_updates
+
+# The number of times this plan is to be computed. Shortest solution
+# will be reported.  Computation will be parallelized up to
+# maximum_number_threads (rqt) or num_planning_attempts, whichever is
+# less.  The default is 1.
+int32 num_planning_attempts
+
+# The maximum time allowed for planning (seconds)
+# Default is 10 seconds.
+float64 allowed_planning_time
+
+---
+
+R2PlanResponse plan_response

@@ -47,6 +47,7 @@ R2Interface::R2Interface(const std::string& robot_description) : psm_(new planni
 
     psm_->addUpdateCallback(boost::bind(&R2Interface::planningSceneUpdate, this, _1));
     psm_->startSceneMonitor(PLANNING_SCENE_UPDATE_TOPIC);
+    planningSceneDirty_ = true;
 
     workspace_.min_corner.x = workspace_.min_corner.y = workspace_.min_corner.z = 0;
     workspace_.max_corner.x = workspace_.max_corner.y = workspace_.max_corner.z = 0;
@@ -347,6 +348,8 @@ const robot_state::RobotState& R2Interface::getCurrentRobotState(void) const
     //return psm_->getPlanningScene()->getCurrentState();
 
     // MUCH better.  Uses LockedPlanningSceneRO
+    if (planningSceneDirty_)
+        ROS_WARN("Planning scene is dirty.  Current state may be incorrect.");
     return getPlanningScene()->getCurrentState();
 }
 
@@ -365,11 +368,13 @@ planning_scene_monitor::LockedPlanningSceneRO R2Interface::getPlanningScene() co
 
 void R2Interface::setPlanningScene(moveit_msgs::PlanningScene& scene)
 {
+    planningSceneDirty_ = true;
     scenePublisher_.publish(scene);
 }
 
 void R2Interface::addObstacleToPlanningScene(const moveit_msgs::CollisionObject& obstacle)
 {
+    planningSceneDirty_ = true;
     obstaclePublisher_.publish(obstacle);
 }
 
@@ -391,8 +396,9 @@ void R2Interface::enableCollisionChecking(const std::string& link1, const std::s
         double waitTime = 10000; // us
         double maxWait = 2000000; // us (2 sec)
         double wait = 0.0;
-        while (planningSceneDirty_ && wait < maxWait)  // don't actually wait forever
+        do
         {
+            ros::spinOnce();  // mas importante
             usleep(waitTime);
             wait += waitTime;
 
@@ -404,6 +410,7 @@ void R2Interface::enableCollisionChecking(const std::string& link1, const std::s
                     planningSceneDirty_ = true;
             }
         }
+        while (planningSceneDirty_ && wait < maxWait);  // don't actually wait forever
 
         if (planningSceneDirty_)
             ROS_WARN("%s: ACK timeout exceeded for %s and %s", __FUNCTION__, link1.c_str(), link2.c_str());
@@ -435,6 +442,7 @@ void R2Interface::enableCollisionChecking(const std::vector<std::string> bodies,
         double wait = 0.0;
         while (planningSceneDirty_ && wait < maxWait)  // don't actually wait forever
         {
+            ros::spinOnce(); // mas importante
             usleep(waitTime);
             wait += waitTime;
 
