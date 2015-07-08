@@ -1,0 +1,8 @@
+<launch>
+    <arg name="debug" default="false"/>
+    <arg unless="$(arg debug)" name="launch_prefix" value="" />
+    <arg     if="$(arg debug)" name="launch_prefix" value="gdb --ex run --args" />
+
+    <!-- planning server -->
+    <node name="r2_planning_server" launch-prefix="$(arg launch_prefix)" pkg="r2_planning_demos" type="r2_planning_server" output="screen" required="true"/>
+</launch>

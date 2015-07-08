@@ -23,8 +23,11 @@ float64 allowed_planning_time
 string planner_id
 
 # The number of times this plan is to be computed. Shortest solution
-# will be reported.
+# will be reported.  Computation will be parallelized up to
+# maximum_number_threads (rqt) or num_planning_attempts, whichever is
+# less.  The default is 1.
 int32 num_planning_attempts
 
-# An (optional) set of updates to the AllowedCollisionMatrix
+# A set of updates to the AllowedCollisionMatrix.  Use this to enable/
+# disable collisions with handrails or other objects in the scene.
 CollisionUpdate[] collision_updates

@@ -14,6 +14,7 @@ R2PlanResponse.msg
 
 set(SRV_FILES
 R2MotionPlanRequest.srv
+R2SimplePlanRequest.srv
 )
 
 #add_action_files(DIRECTORY action FILES ${ACT_FILES})
