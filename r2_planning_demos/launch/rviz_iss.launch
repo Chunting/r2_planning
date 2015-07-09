@@ -13,7 +13,7 @@
   <param name="legs/simplified_robot_description" command="$(find xacro)/xacro.py '$(find r2_simplified_urdf)/r2c6_legs_only_creepy.xacro'" />
 
   <!-- Load OMPL settings -->
-  <include file="$(find r2_planning_moveit_config)/launch/planning_context.launch">
+  <include file="$(find r2_moveit_config)/launch/planning_context.launch">
     <arg name="load_robot_description" value="false"/>
   </include>
 
@@ -28,19 +28,19 @@
   <rosparam if="$(arg execute)" param="/move_group/trajectory_execution/execution_duration_monitoring">false</rosparam>
 
   <!-- Starting up move group server -->
-  <include file="$(find r2_planning_moveit_config)/launch/move_group.launch">
+  <include file="$(find r2_moveit_config)/launch/move_group.launch">
     <arg name="allow_trajectory_execution" value="$(arg execute)"/>
     <arg name="publish_monitored_planning_scene" value="true"/>
-    <arg name="pipeline" value="ompl_new"/>
+    <arg name="pipeline" value="ompl_luna"/>
     <arg name="debug" value="$(arg debug)"/>
   </include>
 
   <!-- Start up the moveit warehouse db -->
-  <include if="$(arg db)" file="$(find r2_planning_moveit_config)/launch/default_warehouse_db.launch" />
+  <include if="$(arg db)" file="$(find r2_moveit_config)/launch/default_warehouse_db.launch" />
 
 
   <!-- Fire up rviz -->
-  <include file="$(find r2_planning_moveit_config)/launch/moveit_rviz.launch">
+  <include file="$(find r2_moveit_config)/launch/moveit_rviz.launch">
     <arg name="config" value="true"/>
     <arg name="debug" value="false"/>
   </include>
