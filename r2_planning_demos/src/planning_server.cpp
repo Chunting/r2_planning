@@ -295,7 +295,7 @@ protected:
         if (req.base_frame.size() > 0)
             setBaseFrame(req.base_frame, plan_req.motion_plan_request.start_state, plan_req.motion_plan_request.path_constraints);
 
-        if (req.torsoUp)
+        if (req.torso_up)
             plan_req.motion_plan_request.path_constraints.orientation_constraints.push_back(createTorsoUpConstraint());
 
         if (req.planner_id.size() > 0)
