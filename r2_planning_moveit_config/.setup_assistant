@@ -1,8 +1,0 @@
-moveit_setup_assistant_config:
-  URDF:
-    package: r2_description
-    relative_path: urdf/r2c6.urdf
-  SRDF:
-    relative_path: config/r2.srdf
-  CONFIG:
-    generated_timestamp: 1430241965
