@@ -34,7 +34,7 @@ string planner_id
 
 # If true, the planner will keep the torso upright at all times
 # Default is false.
-bool torsoUp
+bool torso_up
 
 # The name of a secondary frame to move.  Must be different from goal_frame
 string secondary_frame
