@@ -7,12 +7,13 @@ endif()
 
 find_package(catkin COMPONENTS
   r2_planning_interface
+  r2_planning_msgs
   REQUIRED)
 
 # catkin_package defines the env vars used in install later
 catkin_package(
    LIBRARIES
-   CATKIN_DEPENDS r2_planning_interface
+   CATKIN_DEPENDS r2_planning_interface r2_planning_msgs
    DEPENDS
    INCLUDE_DIRS ${CMAKE_CURRENT_LIST_DIR}/include
 )
