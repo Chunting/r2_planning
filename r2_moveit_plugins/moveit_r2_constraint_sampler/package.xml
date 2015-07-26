@@ -18,5 +18,6 @@
 
   <export>
     <moveit_core plugin="${prefix}/moveit_r2_constraint_sampler_plugin_description.xml"/>
+    <moveit_core plugin="${prefix}/moveit_r2_joint_constraint_sampler_plugin_description.xml"/>
   </export>
 </package>
