@@ -1,0 +1,7 @@
+<library path="libmoveit_r2_joint_constraint_sampler">
+  <class name="moveit_r2_constraints/MoveItR2JointConstraintSamplerAllocator" type="moveit_r2_constraints::MoveItR2JointConstraintSamplerAllocator" base_class_type="constraint_samplers::ConstraintSamplerAllocator">
+    <description>
+      Custom joint constraint sampler allocator for R2
+    </description>
+  </class>
+</library>
