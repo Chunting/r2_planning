@@ -41,6 +41,7 @@ link_directories(${Boost_LIBRARY_DIRS})
 # Planning for any planner with a single pose constraint and fancy interpolation
 add_library(r2_ompl_planning_interface
             src/R2GeometricPlanningContext.cpp
+            src/R2XXLPositionDecomposition.cpp
             )
 target_link_libraries(r2_ompl_planning_interface ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${LIBFCL_LIBRARIES})
 

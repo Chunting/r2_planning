@@ -444,8 +444,18 @@ bool handrailClimbing(R2Interface& interface, const ISSWorld& world)
         for(size_t attempt = 0; attempt < tries && !success; ++attempt)
         {
             if (interface.plan(start_state, leg_constraint, goal_constraints, "legs",
-                               10.0,
-                               "CBiRRT2",
+                               20.0,
+                               //"HiLo",       // good-ish.  Can probably make better
+                               //"HiLo_AG",    // seems to be the winner - compromise between path wackiness and speed.
+                               //"BiHiLo",        // better, still not great
+                               "XXL",         // seems to work well-ish
+                               //"XXL_AG",        // seems to work well
+                               //"RRTConnect", // high failure rate, even for "easy" problems.  When it works, it's super fast.  Wacky paths
+                               //"RRTConnect_AG", // High failure rate and bad paths.  Probably safe to exclude from any benchmarking
+                               //"RRT_AG", // lots of fails, but less (?) than bidirectional RRT
+                               //"RRT",       // much better success rate than RRT_AG and RRTConnect, but paths look cray cray
+                               //"RRTstar",     // Reasonable success rate, but still wacky looking paths
+                               //"CBiRRT2",  // slow, but paths look good-ish.  Probably because it is leveraging the IK solver joint seed to minimize joint distance
                                trajectories[i]))
             {
                 ROS_WARN("Step %lu (to %s) is glorious success", i, handrailPlacements[i].c_str());

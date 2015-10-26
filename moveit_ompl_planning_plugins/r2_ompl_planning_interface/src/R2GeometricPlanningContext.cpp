@@ -36,12 +36,14 @@
 
 #include "r2_ompl_planning_interface/R2GeometricPlanningContext.h"
 #include "r2_ompl_planning_interface/R2HiloPoseDecomposition.h"
+#include "r2_ompl_planning_interface/R2XXLPositionDecomposition.h"
 #include "moveit_ompl_components/CartesianDistancePathSimplifier.h"
 
 #include <pluginlib/class_loader.h>
 
 #include <ompl/geometric/planners/hilo/HiLo.h>
 #include <ompl/geometric/planners/hilo/BiHiLo.h>
+#include <ompl/geometric/planners/hilo/XXL.h>
 
 using namespace ompl_interface;
 
@@ -82,10 +84,40 @@ static ompl::base::PlannerPtr allocateHiLo(const ompl::base::SpaceInformationPtr
     return planner;
 }
 
+template<typename T>
+static ompl::base::PlannerPtr allocateXXL(const ompl::base::SpaceInformationPtr &si,
+                                          const std::string &new_name, const std::map<std::string, std::string>& params,
+                                          ModelBasedStateSpacePtr mbss,
+                                          kinematics::KinematicsBasePtr group_kinematics,
+                                          kinematic_constraints::KinematicConstraintSetPtr constraints)
+{
+    // Totally guessing the workspace bounds.  TODO: Need a better way to do this.  There is a workspace description in the motion_plan_request.
+    ompl::base::RealVectorBounds xyz(3);
+    xyz.low[0] = -3;
+    xyz.low[1] = -1.1;
+    xyz.low[2] = -1.1;
+    xyz.high[0] = 1.0; // halfway ish down the module
+    xyz.high[1] = 1.1;
+    xyz.high[2] = 1.1;
+
+    std::vector<int> xyzSlices(3, 6); // 3D, 4 cuts in each dimension
+    bool diagonalEdges = true;
+
+    ompl::geometric::XXLDecompositionPtr decomp(new R2XXLPositionDecomposition(xyz, xyzSlices, diagonalEdges, mbss, group_kinematics, constraints, si));
+
+    ompl::base::PlannerPtr planner(new T(si, decomp));
+    if (!new_name.empty())
+        planner->setName(new_name);
+    planner->params().setParams(params, true);
+    return planner;
+}
+
+
 R2GeometricPlanningContext::R2GeometricPlanningContext() : GeometricFixedPosePlanningContext()
 {
     GeometricPlanningContext::registerPlannerAllocator("geometric::HiLo", boost::bind(&allocateHiLo<ompl::geometric::HiLo>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematics::KinematicsBasePtr(), kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr()));
     GeometricPlanningContext::registerPlannerAllocator("geometric::BiHiLo", boost::bind(&allocateHiLo<ompl::geometric::BiHiLo>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematics::KinematicsBasePtr(), kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr()));
+    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr()));
 }
 
 R2GeometricPlanningContext::~R2GeometricPlanningContext()
@@ -161,6 +193,7 @@ void R2GeometricPlanningContext::allocateStateSpace(const ModelBasedStateSpaceSp
     // Must do it RIGHT HERE because the planner is allocated in the base class initialize call.
     GeometricPlanningContext::registerPlannerAllocator("geometric::HiLo", boost::bind(&allocateHiLo<ompl::geometric::HiLo>, _1, _2, _3, mbss_, legs_kinematics_, right_leg_kinematics_, left_leg_kinematics_, path_constraints_));
     GeometricPlanningContext::registerPlannerAllocator("geometric::BiHiLo", boost::bind(&allocateHiLo<ompl::geometric::BiHiLo>, _1, _2, _3, mbss_, legs_kinematics_, right_leg_kinematics_, left_leg_kinematics_, path_constraints_));
+    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, legs_kinematics_, path_constraints_));
 }
 
 // Simplify using the Cartesian distance minimizing interpolator

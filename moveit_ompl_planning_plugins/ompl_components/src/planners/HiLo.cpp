@@ -95,7 +95,6 @@ void ompl::geometric::HiLo::setDecomposition(const HiLoDecompositionPtr& decomp)
 
     predecessors_.resize(decomposition_->getNumRegions());
     closedList_.resize(decomposition_->getNumRegions());
-    //graph_.reset(new HiLoGraph(decomposition_));
 }
 
 void ompl::geometric::HiLo::setup()
@@ -555,39 +554,10 @@ ompl::geometric::HiLo::Motion* ompl::geometric::HiLo::selectMotionFromRegion(int
 
 void ompl::geometric::HiLo::updateRegionWeight(int region)
 {
-    double r = (1.0 + regionSelections_[region] * regionSelections_[region]) / (1.0 + regionMotions_[region] * regionMotions_[region]);
-    // r is intended to be a weight on the heuristic.  To keep the heuristic admissible, cap r at 1.0
-    r = std::min(1.0, r);
-    regionWeights_[region] = r;
-
-
-    // double h = std::numeric_limits<double>::infinity();
-
-    // for(size_t i = 0; i < goalRegions_.size(); ++i)
-    // {
-    //     double tmp = decomposition_->distanceHeuristic(region, goalRegions_[i]);
-    //     if (tmp < h)
-    //         h = tmp;
-    // }
-
-    // double r = (1.0 + regionSelections_[region] * regionSelections_[region]) / (1.0 + regionMotions_[region] * regionMotions_[region]);
-
-    // // r is intended to be a weight on the heuristic.  To keep the heuristic admissible, cap r at 1.0
-    // r = std::min(1.0, r);
-
-    // // add 1 to heuristic to prohibit weight of zero at goal
-    // regionWeights_[region] = (1.0 + h) * r;
-
-
-    // // weight is the distance estimate of the region to the goal, weighted by selections^2 / motions^2;
-    // double h = decomposition_->distanceHeuristic(region, goalRegions_[0]); // TODO: make better.  Cache this somewhere?
-    // double r = (1.0 + regionSelections_[region] * regionSelections_[region]) / (1.0 + regionMotions_[region] * regionMotions_[region]);
-
-    // // std::cout << __FUNCTION__ << " (" << region << ")" << std::endl;
-    // // std::cout << "  h = " << h << "   r = " << r << std::endl;
-
-    // // add 1 to heuristic to prohibit weight of zero at goal
-    // regionWeights_[region] = (1.0 + h) * r;
+    double w = (1.0 + regionSelections_[region] * regionSelections_[region]) / (1.0 + regionMotions_[region] * regionMotions_[region]);
+    // For now, I am assuming at most unit-costs on transitions.  To keep the heuristic admissible, cap the weight at 1
+    // The weight can be > 1 if there are states in this region but have never selected it.
+    regionWeights_[region] = std::min(1.0, w);
 }
 
 void ompl::geometric::HiLo::getNeighbors(int rid, std::vector<std::pair<int, double> >& neighbors) const
@@ -685,7 +655,6 @@ bool ompl::geometric::HiLo::shortestPath(int r1, int r2, std::vector<int>& path,
 
     // Create empty open list
     std::priority_queue<OpenListNode> openList;
-    //std::set<int> openListEntries;
 
     // Add start node to open list
     OpenListNode start(r1);
@@ -693,7 +662,6 @@ bool ompl::geometric::HiLo::shortestPath(int r1, int r2, std::vector<int>& path,
     start.h = decomposition_->distanceHeuristic(r1, r2);
     start.parent = r1; // start has a self-transition to parent
     openList.push(start);
-    //openListEntries.insert(r1);
 
     // A* search
     bool solution = false;
@@ -704,8 +672,6 @@ bool ompl::geometric::HiLo::shortestPath(int r1, int r2, std::vector<int>& path,
 
         OpenListNode node = openList.top();
         openList.pop();
-
-        //openListEntries.erase(node.id);
 
         // been here before
         if (closedList_[node.id])
@@ -727,11 +693,8 @@ bool ompl::geometric::HiLo::shortestPath(int r1, int r2, std::vector<int>& path,
         getNeighbors(node.id, neighbors);
         for(size_t i = 0; i < neighbors.size(); ++i)
         {
-            // only add neighbors we have not visited
-            //if (!closedList_[neighbors[i].first])
-
             // only add neighbors we have not visited and are not in open list already
-            if (!closedList_[neighbors[i].first] /*&& openListEntries.find(neighbors[i].first) == openListEntries.end()*/)
+            if (!closedList_[neighbors[i].first])
             {
                 OpenListNode nbr(neighbors[i].first);
                 nbr.g = node.g + neighbors[i].second;
@@ -739,7 +702,6 @@ bool ompl::geometric::HiLo::shortestPath(int r1, int r2, std::vector<int>& path,
                 nbr.parent = node.id;
 
                 openList.push(nbr);
-                //openListEntries.insert(neighbors[i].first);
             }
         }
     }
