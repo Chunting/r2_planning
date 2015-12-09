@@ -46,6 +46,8 @@
 namespace moveit_ompl_constrained_interface
 {
 
+/// \brief An OMPL planning context that configures planning algorithms that reason directly
+/// over arbitrary constraints over the entire path.
 class ConstrainedPlanningContext : public ompl_interface::GeometricPlanningContext
 {
 public:
@@ -63,7 +65,6 @@ protected:
 
     virtual ompl::base::PlannerPtr configurePlanner(const std::string& planner_name, const std::map<std::string, std::string>& params);
 
-    kinematic_constraints::KinematicConstraintSetPtr path_constraints_;
     moveit_msgs::Constraints                         path_constraints_msg_;
 };
 

@@ -91,6 +91,7 @@ protected:
     std::string fixed_link_;
 
     CartesianSpaceInterpolator* interpolator_;
+
 };
 
 }

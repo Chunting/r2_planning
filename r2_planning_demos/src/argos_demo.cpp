@@ -99,7 +99,7 @@ void createARGOSTorsoConstraints(moveit_msgs::Constraints& constraints, double t
     or_constraint.absolute_x_axis_tolerance = tol;
     or_constraint.absolute_y_axis_tolerance = tol;
     or_constraint.absolute_z_axis_tolerance = 6.283185; // 2*PI
-;
+
     constraints.orientation_constraints.push_back(or_constraint);
 }
 
