@@ -85,26 +85,29 @@ R2XXLPositionDecomposition::R2XXLPositionDecomposition(const ompl::base::RealVec
     // Figure out which leg is 'fixed'
     const std::vector<moveit_msgs::PositionConstraint>& pos_constraints = path_constraints_->getPositionConstraints();
     const std::vector<moveit_msgs::OrientationConstraint>& orn_constraints = path_constraints_->getOrientationConstraints();
-    if (pos_constraints.size() != 1 || orn_constraints.size() != 1)
+
+    // Complete hack to figure out what link is fixed.  Assuming there is only one link with both position and orientation constrained
+    fixed_link_name_ = "";
+    for(size_t i = 0; i < pos_constraints.size(); ++i)
     {
-        ROS_ERROR("%s: Expected exactly one position and one orientation constraint", __FUNCTION__);
-        throw;
-    }
-    if (pos_constraints[0].link_name != orn_constraints[0].link_name)
-    {
-        ROS_ERROR("%s: Expected the position and orientation to constrain the same link", __FUNCTION__);
-        throw;
+        for(size_t j = 0; j < orn_constraints.size(); ++j)
+            if (pos_constraints[i].link_name == orn_constraints[j].link_name)
+                fixed_link_name_ = pos_constraints[i].link_name;
     }
 
-    fixed_link_name_ = pos_constraints[0].link_name;
+    if (fixed_link_name_ == "")
+    {
+        ROS_ERROR("%s: Could not determine which link is the base", __FUNCTION__);
+        throw;
+    }
 
     // Total hack to populate projection links
-    // TODO: Fix this.
+    // TODO: Make this not hackey.
     projected_links_.push_back("r2/robot_world");
     if (pos_constraints[0].link_name.find("left") != std::string::npos) // left leg is fixed, so project the right foot
-        projected_links_.push_back("r2/right_leg_foot"); //projected_links_.push_back("r2/right_leg/gripper/tip")
+        projected_links_.push_back("r2/right_leg_foot");
     else
-        projected_links_.push_back("r2/left_leg_foot"); //projected_links_.push_back("r2/left_leg/gripper/tip")
+        projected_links_.push_back("r2/left_leg_foot");
 }
 
 R2XXLPositionDecomposition::~R2XXLPositionDecomposition()

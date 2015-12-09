@@ -14,94 +14,12 @@
 
 #include "r2_planning_interface/ISSWorld.h"
 
-static const std::string LEFT_LEG_END_LINK      = "r2/left_ankle_roll";
-static const std::string RIGHT_LEG_END_LINK     = "r2/right_ankle_roll";
 static const std::string LEFT_GRIPPER_LINK0     = "r2/left_leg/gripper/jaw_left";
 static const std::string LEFT_GRIPPER_LINK1     = "r2/left_leg/gripper/jaw_right";
 static const std::string RIGHT_GRIPPER_LINK0    = "r2/right_leg/gripper/jaw_left";
 static const std::string RIGHT_GRIPPER_LINK1    = "r2/right_leg/gripper/jaw_right";
 static const std::string LEFT_FOOT_LINK         = "r2/left_leg_foot";
 static const std::string RIGHT_FOOT_LINK        = "r2/right_leg_foot";
-
-// Basically forward kinematics, just janky and brittle
-Eigen::Affine3d figureOutWhereLinkIs(moveit::core::RobotModelConstPtr model, const Eigen::Affine3d& origin,
-                                     const std::string& origin_link, const std::string& goal_link)
-{
-    const moveit::core::LinkModel* link = model->getLinkModel(origin_link);
-    {
-        const std::vector<const moveit::core::JointModel*>& childs = link->getChildJointModels();  // I know it should be children, but I'm amusing myself
-        if (childs.size() != 1)
-        {
-            bool good = false;
-            for(size_t i = 0; i < childs.size() && !good; ++i)
-                if (childs[i]->getChildLinkModel()->getName() == goal_link)
-                {
-                    //if (childs[i]->getType() != moveit::core::JointModel::FIXED)
-                    //    ROS_WARN("Child joint %s is NOT fixed", childs[i]->getName().c_str());
-
-                    link = childs[i]->getChildLinkModel();
-                    good = true;
-                }
-
-            if (!good)
-            {
-                ROS_ERROR("Only expected one child joint.  %s has %lu childs", link->getName().c_str(), childs.size());
-                throw;
-            }
-        }
-        const moveit::core::JointModel* joint = childs[0];
-        link = joint->getChildLinkModel();
-    }
-    Eigen::Affine3d pose = origin;
-    while(link)
-    {
-
-        pose = pose * link->getJointOriginTransform();
-
-        if (link->getName() == goal_link)
-            break;
-
-        const std::vector<const moveit::core::JointModel*>& childs = link->getChildJointModels();
-        if (childs.size() == 0) // bad
-        {
-            link = NULL;
-            break;
-        }
-        if (childs.size() != 1)
-        {
-            bool good = false;
-            for(size_t i = 0; i < childs.size() && !good; ++i)
-                if (childs[i]->getChildLinkModel()->getName() == goal_link)
-                {
-                    //if (childs[i]->getType() != moveit::core::JointModel::FIXED)
-                    //    ROS_WARN("Child joint %s is NOT fixed", childs[i]->getName().c_str());
-
-                    link = childs[i]->getChildLinkModel();
-                    good = true;
-                }
-
-            if (!good)
-            {
-                ROS_ERROR("Only expected one child joint.  %s has %lu childs", link->getName().c_str(), childs.size());
-                throw;
-            }
-        }
-        else
-        {
-            //if (childs[0]->getType() != moveit::core::JointModel::FIXED)
-            //    ROS_WARN("Child joint %s is NOT fixed", childs[0]->getName().c_str());
-            link = childs[0]->getChildLinkModel();
-        }
-    }
-
-    if (!link)
-    {
-        ROS_ERROR("%s is not a descendent of %s", goal_link.c_str(), origin_link.c_str());
-        throw;
-    }
-
-    return pose;
-}
 
 // Disable collisions with handrails that we touch or will touch
 void querySwitchEvent(const moveit_msgs::MotionPlanRequest& request, planning_scene::PlanningScenePtr planning_scene, const ISSWorld* world)
@@ -165,12 +83,7 @@ void querySwitchEvent(const moveit_msgs::MotionPlanRequest& request, planning_sc
                 Eigen::Affine3d link_pose;
                 tf::poseMsgToEigen(request.goal_constraints[0].position_constraints[0].constraint_region.primitive_poses[0], link_pose);
 
-                // Use the link pose to figure out where the gripper is.
-                Eigen::Affine3d gripper_pose = figureOutWhereLinkIs(model, link_pose,
-                                                   request.goal_constraints[0].position_constraints[0].link_name,
-                                                   (left_leg_fixed ? LEFT_GRIPPER_LINK0 : RIGHT_GRIPPER_LINK0));
-
-                Eigen::Vector3d position = gripper_pose.translation();
+                Eigen::Vector3d position = link_pose.translation();
                 unsigned int hr_idx = world->findHandrail(position);
                 if (hr_idx < world->numHandrails())
                 {
@@ -189,11 +102,6 @@ void querySwitchEvent(const moveit_msgs::MotionPlanRequest& request, planning_sc
             }
         }
     }
-
-    // bool valid = planning_scene->isStateValid(*state, request.path_constraints, request.group_name, true);
-    // if (valid)
-    //     ROS_WARN("Start state is valid");
-    // else ROS_WARN("Start state is totally not valid");
 }
 
 double cartesianJointDistance(const robot_state::RobotState& s1, const robot_state::RobotState& s2, const std::vector<std::string>& links)
@@ -231,8 +139,12 @@ void postRunCartesianDistance(const moveit_msgs::MotionPlanRequest& request, con
         return;
     }
 
+    std::cout << "Post run..." << std::endl;
+
     for (std::size_t i = 0; i < response.trajectory_.size(); ++i)
     {
+        std::cout << "   Trajectory [" << response.description_[i] << "] has " << response.trajectory_[i]->getWayPointCount() << " states" << std::endl;
+
         double cart_dist = 0.0;
         const robot_trajectory::RobotTrajectory &t = *response.trajectory_[i];
         for (std::size_t j = 1; j < t.getWayPointCount(); ++j)
@@ -241,6 +153,8 @@ void postRunCartesianDistance(const moveit_msgs::MotionPlanRequest& request, con
         std::string description("cartesian_distance_" + response.description_[i]);
         run_data[description + " REAL"] = boost::lexical_cast<std::string>(cart_dist);
     }
+
+    std::cout << "Post run esta muerte" << std::endl;
 }
 
 void runBenchmarks()

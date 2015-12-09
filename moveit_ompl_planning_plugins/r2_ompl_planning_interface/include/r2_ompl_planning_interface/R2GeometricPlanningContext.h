@@ -62,8 +62,6 @@ protected:
     /// \brief Simplify the solution path (in simple setup).  Use no more than max_time seconds.
     virtual double simplifySolution(double max_time);
 
-    kinematics::KinematicsBasePtr left_leg_kinematics_;
-    kinematics::KinematicsBasePtr right_leg_kinematics_;
     kinematics::KinematicsBasePtr legs_kinematics_;
 };
 

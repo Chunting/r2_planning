@@ -14,8 +14,8 @@
 #include <moveit/move_group/capability_names.h>
 #include <moveit_msgs/GetMotionPlan.h>
 
-static const std::string LEFT_LEG_END_LINK      = "r2/left_ankle_roll";
-static const std::string RIGHT_LEG_END_LINK     = "r2/right_ankle_roll";
+static const std::string LEFT_LEG_END_LINK      = "r2/left_leg/gripper/tip"; //"r2/left_ankle_roll";
+static const std::string RIGHT_LEG_END_LINK     = "r2/right_leg/gripper/tip"; //"r2/right_ankle_roll";
 static const std::string LEFT_GRIPPER_LINK0     = "r2/left_leg/gripper/jaw_left";
 static const std::string LEFT_GRIPPER_LINK1     = "r2/left_leg/gripper/jaw_right";
 static const std::string RIGHT_GRIPPER_LINK0    = "r2/right_leg/gripper/jaw_left";
@@ -287,7 +287,7 @@ Eigen::Affine3d getGoalPose(const ISSWorld& world, const std::string& handrail)
     goal_pose.translation() = world.getHandrailMidpoint(hr);
 
     // Since the end of the leg group is NOT the foot, we offset by roughly the height of the foot
-    if (hr->group == "Handrail_starboard")
+    /*if (hr->group == "Handrail_starboard")
     {
         goal_pose.translation()(1) -= 0.27;
     }
@@ -304,7 +304,7 @@ Eigen::Affine3d getGoalPose(const ISSWorld& world, const std::string& handrail)
         goal_pose.translation()(2) -= 0.27;
     }
     else
-        ROS_WARN("Unknown handrail group '%s'", hr->group.c_str());
+        ROS_WARN("Unknown handrail group '%s'", hr->group.c_str());*/
 
     // Retrieve the proper foot orientation for the goal handrail
     std::vector<double> rpy;
@@ -332,12 +332,175 @@ moveit_msgs::OrientationConstraint createTorsoUpConstraint()
     torso_orn_constraint.header.frame_id = "virtual_world";
     torso_orn_constraint.orientation = q;
     torso_orn_constraint.link_name = "r2/robot_world";
-    torso_orn_constraint.absolute_x_axis_tolerance = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL;
-    torso_orn_constraint.absolute_y_axis_tolerance = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL;
+    torso_orn_constraint.absolute_x_axis_tolerance = moveit_r2_kinematics::HIGH_PRIO_ANGULAR_TOL;
+    torso_orn_constraint.absolute_y_axis_tolerance = moveit_r2_kinematics::HIGH_PRIO_ANGULAR_TOL;
     torso_orn_constraint.absolute_z_axis_tolerance = 6.283185;
     torso_orn_constraint.weight = 1.0;
 
     return torso_orn_constraint;
+}
+
+// Constrain the roll and pitch angles of the torso
+// Default tolerance is HIGH rather than CRITICAL since ARGOS cannot perfectly constrain the
+// roll and pitch of the body to zero.
+void createARGOSTorsoConstraints(moveit_msgs::Constraints& constraints, double tol = moveit_r2_kinematics::HIGH_PRIO_ANGULAR_TOL)
+{
+    // Orientation is constrained relative to pose (global frame):
+    Eigen::Affine3d I = Eigen::Affine3d::Identity();
+    geometry_msgs::Pose pose_msg;
+    tf::poseEigenToMsg(I , pose_msg);
+
+    moveit_msgs::OrientationConstraint or_constraint;
+    or_constraint.link_name = "r2/robot_world";
+    or_constraint.orientation = pose_msg.orientation;
+    or_constraint.header.frame_id = "virtual_world";
+    or_constraint.weight = 1.0;
+
+    // No roll or pitch allowed.  Yaw is unconstrained
+    or_constraint.absolute_x_axis_tolerance = tol;
+    or_constraint.absolute_y_axis_tolerance = tol;
+    or_constraint.absolute_z_axis_tolerance = 6.283185; // 2*PI
+
+    constraints.orientation_constraints.push_back(or_constraint);
+}
+
+// Constrain linkName to be at the given pose (position and orientation)
+void createBaseLinkConstraints(moveit_msgs::Constraints& constraints, const std::string& linkName, geometry_msgs::Pose& pose,
+                               double linearTol = moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL,
+                               double angularTol = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL)
+{
+    moveit_msgs::PositionConstraint pos_constraint;
+    std::string frame_id = "virtual_world";
+
+    // Setting position constraint
+    pos_constraint.link_name = linkName;
+    pos_constraint.target_point_offset.x = 0.0;
+    pos_constraint.target_point_offset.y = 0.0;
+    pos_constraint.target_point_offset.z = 0.0;
+    pos_constraint.weight = 1.0;
+
+    shape_msgs::SolidPrimitive box;
+    box.type = shape_msgs::SolidPrimitive::BOX;
+    box.dimensions.push_back(linearTol);  // BOX_X
+    box.dimensions.push_back(linearTol);  // BOX_Y
+    box.dimensions.push_back(linearTol);  // BOX_Z
+    pos_constraint.constraint_region.primitives.push_back(box);
+
+    pos_constraint.constraint_region.primitive_poses.push_back(pose);
+    pos_constraint.header.frame_id = frame_id;
+    constraints.position_constraints.push_back(pos_constraint);
+
+    moveit_msgs::OrientationConstraint or_constraint;
+
+    // Create an orientation constraint for link_name
+    or_constraint.link_name = linkName;
+    or_constraint.orientation = pose.orientation;
+    or_constraint.header.frame_id = frame_id;
+    or_constraint.weight = 1.0;
+
+    or_constraint.absolute_x_axis_tolerance = angularTol;
+    or_constraint.absolute_y_axis_tolerance = angularTol;
+    or_constraint.absolute_z_axis_tolerance = angularTol;
+
+    constraints.orientation_constraints.push_back(or_constraint);
+}
+
+// Create a position and orientation constraint for the moving link in the step
+void createGoalConstraints(//const Step& step,
+                           const std::string& link, const geometry_msgs::PoseStamped& pose,
+                           std::vector<moveit_msgs::Constraints>& constraints,
+                           double linearTol = moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL,
+                           double angularTol = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL)
+{
+    moveit_msgs::Constraints goal;
+
+    moveit_msgs::PositionConstraint position;
+    position.link_name = link;
+    position.target_point_offset.x = 0.0;
+    position.target_point_offset.y = 0.0;
+    position.target_point_offset.z = 0.0;
+    position.weight = 1.0;
+
+    shape_msgs::SolidPrimitive box;
+    box.type = shape_msgs::SolidPrimitive::BOX;
+    box.dimensions.push_back(linearTol);  // BOX_X
+    box.dimensions.push_back(linearTol);  // BOX_Y
+    box.dimensions.push_back(linearTol);  // BOX_Z
+    position.constraint_region.primitives.push_back(box);
+
+    position.constraint_region.primitive_poses.push_back(pose.pose);
+    position.header.frame_id = pose.header.frame_id;
+    goal.position_constraints.push_back(position);
+
+    moveit_msgs::OrientationConstraint orientation;
+    orientation.link_name = link;
+    orientation.orientation = pose.pose.orientation;
+    orientation.header.frame_id = pose.header.frame_id;
+    orientation.weight = 1.0;
+
+    orientation.absolute_x_axis_tolerance = angularTol;
+    orientation.absolute_y_axis_tolerance = angularTol;
+    orientation.absolute_z_axis_tolerance = angularTol;
+    goal.orientation_constraints.push_back(orientation);
+
+    // If a desired torso yaw is requested, also setup this constraint
+    // if (step.torsoYaw)
+    // {
+    //     // Orientation is constrained relative to pose (global frame):
+    //     Eigen::Affine3d pose = Eigen::Affine3d::Identity();
+    //     pose *= Eigen::AngleAxisd(step.yaw, Eigen::Vector3d::UnitZ());
+    //     geometry_msgs::Pose pose_msg;
+    //     tf::poseEigenToMsg(pose, pose_msg);
+
+    //     moveit_msgs::OrientationConstraint torso_constraint;
+    //     torso_constraint.link_name = "r2/robot_world";
+    //     torso_constraint.orientation = pose_msg.orientation;
+    //     torso_constraint.header.frame_id = "virtual_world";
+    //     torso_constraint.weight = 1.0;
+
+    //     // roll and pitch are not constrained
+    //     torso_constraint.absolute_x_axis_tolerance = 6.283185;
+    //     torso_constraint.absolute_y_axis_tolerance = 6.283185;
+    //     torso_constraint.absolute_z_axis_tolerance = angularTol;
+
+    //     goal.orientation_constraints.push_back(torso_constraint);
+    // }
+
+    // // Desired x, y and/or z value
+    // if (step.torsoX || step.torsoY || step.torsoZ)
+    // {
+    //     // Position is constrained relative to pose (in global frame):
+    //     Eigen::Affine3d pose = Eigen::Affine3d::Identity();
+    //     if (step.torsoX) pose.translation()(0) = step.x;
+    //     if (step.torsoY) pose.translation()(1) = step.y;
+    //     if (step.torsoZ) pose.translation()(2) = step.z;
+    //     geometry_msgs::Pose pose_msg;
+    //     tf::poseEigenToMsg(pose, pose_msg);
+
+    //     moveit_msgs::PositionConstraint torso_position;
+    //     std::string frame_id = "virtual_world";
+
+    //     // Setting position constraint
+    //     torso_position.link_name = "r2/robot_world";
+    //     torso_position.target_point_offset.x = 0.0;
+    //     torso_position.target_point_offset.y = 0.0;
+    //     torso_position.target_point_offset.z = 0.0;
+    //     torso_position.weight = 1.0;
+
+    //     shape_msgs::SolidPrimitive box;
+    //     box.type = shape_msgs::SolidPrimitive::BOX;
+    //     box.dimensions.push_back(step.torsoX ? moveit_r2_kinematics::HIGH_PRIO_LINEAR_TOL : 10);  // BOX_X
+    //     box.dimensions.push_back(step.torsoY ? moveit_r2_kinematics::HIGH_PRIO_LINEAR_TOL : 10);  // BOX_Y
+    //     box.dimensions.push_back(step.torsoZ ? moveit_r2_kinematics::HIGH_PRIO_LINEAR_TOL : 10);  // BOX_Z
+    //     torso_position.constraint_region.primitives.push_back(box);
+
+    //     torso_position.constraint_region.primitive_poses.push_back(pose_msg);
+    //     torso_position.header.frame_id = frame_id;
+
+    //     goal.position_constraints.push_back(torso_position);
+    // }
+
+    constraints.push_back(goal);
 }
 
 bool handrailClimbing(R2Interface& interface, const ISSWorld& world)
@@ -376,93 +539,110 @@ bool handrailClimbing(R2Interface& interface, const ISSWorld& world)
         tf::poseEigenToMsg(goal_pose, pose_msg.pose);
         pose_msg.header.frame_id = "virtual_world";
 
-         // fix the fixed leg for the whole path
-        moveit_msgs::Constraints leg_constraint;
-        leg_constraint.position_constraints.push_back(createPositionConstraint(fixedLink, *(currentState.get()), moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL));
-        leg_constraint.orientation_constraints.push_back(createOrientationConstraint(fixedLink, *(currentState.get()), moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL));
+        // fix the fixed leg for the whole path
+        // moveit_msgs::Constraints path_constraints;
+        // path_constraints.position_constraints.push_back(createPositionConstraint(fixedLink, *(currentState.get()), moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL));
+        // path_constraints.orientation_constraints.push_back(createOrientationConstraint(fixedLink, *(currentState.get()), moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL));
 
-        // Setup goal pose constraint for moving foot
-        moveit_msgs::PositionConstraint goal_pos_constraint;
-        goal_pos_constraint.header.frame_id = "virtual_world";
-        goal_pos_constraint.link_name = movingLink;
-        goal_pos_constraint.target_point_offset.x = 0;
-        goal_pos_constraint.target_point_offset.y = 0;
-        goal_pos_constraint.target_point_offset.z = 0;
+        moveit_msgs::Constraints path_constraints;
 
-        // Define a bounding box - the goal region
-        shape_msgs::SolidPrimitive box;
-        box.type = shape_msgs::SolidPrimitive::BOX;
+        // base link pose constraint
+        geometry_msgs::Pose base_pose;
+        tf::poseEigenToMsg(currentState->getGlobalLinkTransform(fixedLink), base_pose);
+        createBaseLinkConstraints(path_constraints, fixedLink, base_pose);
+        // body pose constraint
+        //createARGOSTorsoConstraints(path_constraints); // whole path torso-up
 
-        // Allow for wiggle room along the handrail
-        // TODO: There is a bug here, so no wiggle room allowed.
-        // Likely a problem with tolerances and the wiggle room.  Is the frame correct??
-        const ISSWorld::Handrail* hr = world.getHandrail(handrailPlacements[i]);
-        if (hr->group == "Handrail_deck" || hr->group == "Handrail_overhead")
-        {
-            box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);   // BOX_X
-            box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);   // BOX_Y
-            //box.dimensions.push_back(0.4);                                              // BOX_Y - half width of handrail
-            box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);   // BOX_Z
-        }
-        else if (hr->group == "Handrail_port" || hr->group == "Handrail_starboard")
-        {
-            box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);   // BOX_X
-            box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);   // BOX_Y
-            //box.dimensions.push_back(0.4);                                              // BOX_Z - half width of handrail
-            box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);    // BOX_Z
-        }
+        // goal pose constraints
+        std::vector<moveit_msgs::Constraints> goal_constraints;
+        createGoalConstraints(movingLink, pose_msg, goal_constraints);
+        createARGOSTorsoConstraints(goal_constraints[0]);  // torso up at goal
 
-        goal_pos_constraint.constraint_region.primitives.push_back(box);
-        goal_pos_constraint.weight = 1.0;
+        // // Setup goal pose constraint for moving foot
+        // moveit_msgs::PositionConstraint goal_pos_constraint;
+        // goal_pos_constraint.header.frame_id = "virtual_world";
+        // goal_pos_constraint.link_name = movingLink;
+        // goal_pos_constraint.target_point_offset.x = 0;
+        // goal_pos_constraint.target_point_offset.y = 0;
+        // goal_pos_constraint.target_point_offset.z = 0;
 
-        // Center the bounding box at the goal pose location
-        goal_pos_constraint.constraint_region.primitive_poses.push_back(pose_msg.pose);
+        // // Define a bounding box - the goal region
+        // shape_msgs::SolidPrimitive box;
+        // box.type = shape_msgs::SolidPrimitive::BOX;
 
-        // Create orientation constraint (upright over handrail)
-        moveit_msgs::OrientationConstraint goal_orn_constraint;
-        goal_orn_constraint.header.frame_id = pose_msg.header.frame_id;
-        goal_orn_constraint.orientation = pose_msg.pose.orientation;
-        goal_orn_constraint.link_name = movingLink;
-        goal_orn_constraint.absolute_x_axis_tolerance = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL;
-        goal_orn_constraint.absolute_y_axis_tolerance = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL;
-        goal_orn_constraint.absolute_z_axis_tolerance = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL;
-        goal_orn_constraint.weight = 1.0;
+        // // Allow for wiggle room along the handrail
+        // // TODO: There is a bug here, so no wiggle room allowed.
+        // // Likely a problem with tolerances and the wiggle room.  Is the frame correct??
+        // const ISSWorld::Handrail* hr = world.getHandrail(handrailPlacements[i]);
+        // if (hr->group == "Handrail_deck" || hr->group == "Handrail_overhead")
+        // {
+        //     box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);   // BOX_X
+        //     box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);   // BOX_Y
+        //     //box.dimensions.push_back(0.4);                                              // BOX_Y - half width of handrail
+        //     box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);   // BOX_Z
+        // }
+        // else if (hr->group == "Handrail_port" || hr->group == "Handrail_starboard")
+        // {
+        //     box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);   // BOX_X
+        //     box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);   // BOX_Y
+        //     //box.dimensions.push_back(0.4);                                              // BOX_Z - half width of handrail
+        //     box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);    // BOX_Z
+        // }
 
-        // Amalgamate all goal constraints together
-        std::vector<moveit_msgs::Constraints> goal_constraints(1);
-        goal_constraints.back().position_constraints.push_back(goal_pos_constraint);
-        goal_constraints.back().orientation_constraints.push_back(goal_orn_constraint);
-        goal_constraints.back().orientation_constraints.push_back(createTorsoUpConstraint());
+        // goal_pos_constraint.constraint_region.primitives.push_back(box);
+        // goal_pos_constraint.weight = 1.0;
+
+        // // Center the bounding box at the goal pose location
+        // goal_pos_constraint.constraint_region.primitive_poses.push_back(pose_msg.pose);
+
+        // // Create orientation constraint (upright over handrail)
+        // moveit_msgs::OrientationConstraint goal_orn_constraint;
+        // goal_orn_constraint.header.frame_id = pose_msg.header.frame_id;
+        // goal_orn_constraint.orientation = pose_msg.pose.orientation;
+        // goal_orn_constraint.link_name = movingLink;
+        // goal_orn_constraint.absolute_x_axis_tolerance = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL;
+        // goal_orn_constraint.absolute_y_axis_tolerance = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL;
+        // goal_orn_constraint.absolute_z_axis_tolerance = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL;
+        // goal_orn_constraint.weight = 1.0;
+
+        // // Amalgamate all goal constraints together
+        // std::vector<moveit_msgs::Constraints> goal_constraints(1);
+        // goal_constraints.back().position_constraints.push_back(goal_pos_constraint);
+        // goal_constraints.back().orientation_constraints.push_back(goal_orn_constraint);
+        // //goal_constraints.back().orientation_constraints.push_back(createTorsoUpConstraint());
 
         moveit_msgs::RobotState start_state;
         moveit::core::robotStateToRobotStateMsg(*(currentState.get()), start_state);
 
-        unsigned int tries = 10;
+        unsigned int tries = 4;
         success = false;
 
         // Try a few times before giving up.  Sometimes we get a crappy goal state
         for(size_t attempt = 0; attempt < tries && !success; ++attempt)
         {
-            if (interface.plan(start_state, leg_constraint, goal_constraints, "legs",
+            if (interface.plan(start_state, path_constraints, goal_constraints, "legs",
                                20.0,
                                //"HiLo",       // good-ish.  Can probably make better
                                //"HiLo_AG",    // seems to be the winner - compromise between path wackiness and speed.
                                //"BiHiLo",        // better, still not great
-                               "XXL",         // seems to work well-ish
-                               //"XXL_AG",        // seems to work well
+                               "XXL",         // seems to work well-ish.  I saw a backflip.
+                               //"XXL_AG",        // seems to work well-ish.  No backflips, but second step is difficult for interpolator.
                                //"RRTConnect", // high failure rate, even for "easy" problems.  When it works, it's super fast.  Wacky paths
                                //"RRTConnect_AG", // High failure rate and bad paths.  Probably safe to exclude from any benchmarking
                                //"RRT_AG", // lots of fails, but less (?) than bidirectional RRT
                                //"RRT",       // much better success rate than RRT_AG and RRTConnect, but paths look cray cray
                                //"RRTstar",     // Reasonable success rate, but still wacky looking paths
                                //"CBiRRT2",  // slow, but paths look good-ish.  Probably because it is leveraging the IK solver joint seed to minimize joint distance
+                               //"RRT_LC",  // super experimental
+                               //"XXL_LC",  // it don't get more experimental than this
+                               //"KPIECE",
                                trajectories[i]))
             {
                 ROS_WARN("Step %lu (to %s) is glorious success", i, handrailPlacements[i].c_str());
                 success = true;
             }
             else
-                ROS_ERROR("Attempt %lu to '%s' brings shame upon you", attempt, handrailPlacements[i].c_str(), i);
+                ROS_ERROR("Attempt %lu to '%s' brings shame upon you", attempt, handrailPlacements[i].c_str());
         }
 
         if (!success)

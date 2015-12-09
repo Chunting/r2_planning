@@ -1,0 +1,19 @@
+<launch>
+
+  <arg name="debug" default="false"/>
+  <arg unless="$(arg debug)" name="launch_prefix" value="" />
+  <arg     if="$(arg debug)" name="launch_prefix" value="gdb --ex run --args" />
+
+  <!-- world description -->
+  <arg name="world" default="$(find r2_planning_demos)/world/iss_navigation.world.yaml"/>
+
+  <!--  spawn world - RViz visualization -->
+  <include file="$(find r2_planning_demos)/launch/spawn_world.launch">
+    <arg name="world" value="$(arg world)"/>
+  </include>
+
+  <node name="make_db" pkg="r2_benchmark" type="make_db" launch-prefix="$(arg launch_prefix)" output="screen" required="true">
+    <rosparam command="load" file="$(arg world)"/>
+    <param name="constraint_samplers" value="moveit_r2_constraints/MoveItR2ConstraintSamplerAllocator moveit_r2_constraints/MoveItR2PoseSamplerAllocator"/>
+  </node>
+</launch>

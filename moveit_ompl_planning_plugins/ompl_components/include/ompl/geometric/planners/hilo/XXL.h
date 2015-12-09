@@ -170,7 +170,10 @@ namespace ompl
                 Region& getRegion(int r)
                 {
                     if (r < 0 || r >= (int)regions.size())
+                    {
+                        OMPL_ERROR("Requested region %d, but there are only %lu regions", r, regions.size());
                         throw ompl::Exception("Region out of bounds");
+                    }
 
                     return regions[r];
                 }
@@ -178,7 +181,10 @@ namespace ompl
                 const Region& getRegion(int r) const
                 {
                     if (r < 0 || r >= (int)regions.size())
+                    {
+                        OMPL_ERROR("Requested region %d, but there are only %lu regions", r, regions.size());
                         throw ompl::Exception("Region out of bounds");
+                    }
 
                     return regions[r];
                 }
@@ -390,6 +396,7 @@ namespace ompl
             // Compute a path from r1 to r2 via a random walk
             bool randomWalk(int r1, int r2, std::vector<int>& path);
 
+            void getGoalStates();
             // Thread that gets us goal states
             void getGoalStates(const base::PlannerTerminationCondition &ptc);
 
@@ -397,6 +404,8 @@ namespace ompl
 
             bool isStartState(int idx) const;
             bool isGoalState(int idx) const;
+
+            void writeDebugOutput() const;
 
             // Root layer of the decomposition data
             Layer* topLayer_;
@@ -431,8 +440,9 @@ namespace ompl
             AdjacencyList realGraph_;
 
             // Variables for the goal state sampling thread
-            boost::mutex stateMutex_;
-            boost::thread goalStateThread_;
+            // boost::mutex stateMutex_;
+            // boost::recursive_mutex stateMutex_;
+            // boost::thread goalStateThread_;
             bool kill_;
 
             // Scratch space for shortest path computation

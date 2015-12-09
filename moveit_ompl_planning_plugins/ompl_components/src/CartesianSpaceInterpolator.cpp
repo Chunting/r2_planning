@@ -76,6 +76,9 @@ void CartesianSpaceInterpolator::interpolate(const robot_state::RobotState* a, c
                                                     result->getGlobalLinkTransform(joints[i]->getChildLinkModel()), interp);
             val += joint_vals[joint_index];
 
+            // make sure angle position is within limits
+            joints[i]->enforcePositionBounds(&val);
+
             // Update the joint angle
             result->setJointPositions(joints[i]->getName(), &val);
         }

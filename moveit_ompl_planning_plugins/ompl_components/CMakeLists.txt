@@ -48,6 +48,8 @@ add_library(moveit_ompl_components
             src/planners/XXL.cpp
             src/planners/AdjacencyList.cpp
             src/planners/XXLPositionDecomposition.cpp
+            src/planners/RLRT.cpp
+            src/planners/BiRLRT.cpp
             )
 target_link_libraries(moveit_ompl_components ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${LIBFCL_LIBRARIES})
 

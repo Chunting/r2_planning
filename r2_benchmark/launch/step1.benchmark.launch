@@ -8,13 +8,16 @@
   <arg name="world" default="$(find r2_planning_demos)/world/iss_navigation.world.yaml"/>
 
   <!-- benchmark options file -->
-  <arg name="bench_opts" default="$(find r2_benchmark)/benchmark/iss_climbing.yaml"/>
+  <arg name="bench_opts" default="$(find r2_benchmark)/benchmark/iss_step1.yaml"/>
 
   <!-- Load universal robotic description format (URDF) -->
   <param name="robot_description" textfile="$(find r2_description)/urdf/r2c6.urdf"/>
 
   <!-- Load a simplified URDF for legs ONLY (for faster inverse kinematics) -->
   <param name="legs/simplified_robot_description" command="$(find xacro)/xacro.py '$(find r2_simplified_urdf)/r2c6_legs_only_creepy.xacro'" />
+
+  <!-- Interpolate all paths to have at least 100 waypoints -->
+  <rosparam param="ompl_context_mgr/minimum_waypoint_count">100</rosparam>
 
   <!-- Load OMPL settings -->
   <include file="$(find r2_moveit_config)/launch/planning_context.launch">

@@ -35,72 +35,36 @@
 /* Author: Ryan Luna */
 
 #include "r2_ompl_planning_interface/R2GeometricPlanningContext.h"
-#include "r2_ompl_planning_interface/R2HiloPoseDecomposition.h"
 #include "r2_ompl_planning_interface/R2XXLPositionDecomposition.h"
 #include "moveit_ompl_components/CartesianDistancePathSimplifier.h"
 
 #include <pluginlib/class_loader.h>
 
-#include <ompl/geometric/planners/hilo/HiLo.h>
-#include <ompl/geometric/planners/hilo/BiHiLo.h>
 #include <ompl/geometric/planners/hilo/XXL.h>
+#include <ompl/geometric/planners/rlrt/RLRT.h>
+#include <ompl/geometric/planners/rlrt/BiRLRT.h>
 
 using namespace ompl_interface;
-
-template<typename T>
-static ompl::base::PlannerPtr allocateHiLo(const ompl::base::SpaceInformationPtr &si,
-                                           const std::string &new_name, const std::map<std::string, std::string>& params,
-                                           ModelBasedStateSpacePtr mbss,
-                                           kinematics::KinematicsBasePtr legs_kinematics,
-                                           kinematics::KinematicsBasePtr right_leg_kinematics,
-                                           kinematics::KinematicsBasePtr left_leg_kinematics,
-                                           kinematic_constraints::KinematicConstraintSetPtr constraints)
-{
-    // Totally guessing the workspace bounds.  TODO: Need a better way to do this.  There is a workspace description in the motion_plan_request.
-    ompl::base::RealVectorBounds xyz(3);
-    xyz.low[0] = -3;
-    xyz.low[1] = -1.5;
-    xyz.low[2] = -1.5;
-    xyz.high[0] = 0; // halfway ish down the module
-    xyz.high[1] = 1.5;
-    xyz.high[2] = 1.5;
-
-    // use [-pi,pi] because this is what Eigen::Rotation.eulerAngles returns
-    ompl::base::RealVectorBounds rpy(3);
-    rpy.setLow(-3.14159265359);
-    rpy.setHigh(3.14159265359);
-
-    std::vector<int> xyzSlices(3, 20); // 3D, 15 cuts in each dimension
-    std::vector<int> rpySlices(3, 8);  // 3D, 8 cuts in each dimension
-
-    ompl::geometric::HiLoDecompositionPtr decomp(new R2HiloPoseDecomposition(xyz, xyzSlices, rpy, rpySlices, true, mbss, legs_kinematics,
-                                                                             //right_leg_kinematics, left_leg_kinematics,
-                                                                             constraints, si));
-
-    ompl::base::PlannerPtr planner(new T(si, decomp));
-    if (!new_name.empty())
-        planner->setName(new_name);
-    planner->params().setParams(params, true);
-    return planner;
-}
 
 template<typename T>
 static ompl::base::PlannerPtr allocateXXL(const ompl::base::SpaceInformationPtr &si,
                                           const std::string &new_name, const std::map<std::string, std::string>& params,
                                           ModelBasedStateSpacePtr mbss,
                                           kinematics::KinematicsBasePtr group_kinematics,
-                                          kinematic_constraints::KinematicConstraintSetPtr constraints)
+                                          kinematic_constraints::KinematicConstraintSetPtr constraints,
+                                          int slices)
 {
-    // Totally guessing the workspace bounds.  TODO: Need a better way to do this.  There is a workspace description in the motion_plan_request.
+    // Totally guessing the workspace bounds.
+    // TODO: Need a better way to do this.  There is a workspace description in the motion_plan_request.
     ompl::base::RealVectorBounds xyz(3);
     xyz.low[0] = -3;
-    xyz.low[1] = -1.1;
+    xyz.low[1] = -2.0; // large, since the foot can enter the stow closet thing // -1.1;
     xyz.low[2] = -1.1;
-    xyz.high[0] = 1.0; // halfway ish down the module
+    xyz.high[0] = 1.1; // halfway ish down the module
     xyz.high[1] = 1.1;
     xyz.high[2] = 1.1;
 
-    std::vector<int> xyzSlices(3, 6); // 3D, 4 cuts in each dimension
+    std::vector<int> xyzSlices(3, slices); // 3D, 'slices' cuts in each dimension
     bool diagonalEdges = true;
 
     ompl::geometric::XXLDecompositionPtr decomp(new R2XXLPositionDecomposition(xyz, xyzSlices, diagonalEdges, mbss, group_kinematics, constraints, si));
@@ -112,12 +76,24 @@ static ompl::base::PlannerPtr allocateXXL(const ompl::base::SpaceInformationPtr 
     return planner;
 }
 
+template<typename T>
+static ompl::base::PlannerPtr allocatePlanner(const ompl::base::SpaceInformationPtr &si,
+                                              const std::string &new_name, const std::map<std::string, std::string>& params)
+{
+    ompl::base::PlannerPtr planner(new T(si));
+    if (!new_name.empty())
+        planner->setName(new_name);
+    planner->params().setParams(params, true);
+    return planner;
+}
+
 
 R2GeometricPlanningContext::R2GeometricPlanningContext() : GeometricFixedPosePlanningContext()
 {
-    GeometricPlanningContext::registerPlannerAllocator("geometric::HiLo", boost::bind(&allocateHiLo<ompl::geometric::HiLo>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematics::KinematicsBasePtr(), kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr()));
-    GeometricPlanningContext::registerPlannerAllocator("geometric::BiHiLo", boost::bind(&allocateHiLo<ompl::geometric::BiHiLo>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematics::KinematicsBasePtr(), kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr()));
-    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr()));
+    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr(), 4));
+    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL1", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr(), 1));
+    GeometricPlanningContext::registerPlannerAllocator("geometric::RLRT", boost::bind(&allocatePlanner<ompl::geometric::RLRT>, _1, _2, _3));
+    GeometricPlanningContext::registerPlannerAllocator("geometric::BiRLRT", boost::bind(&allocatePlanner<ompl::geometric::BiRLRT>, _1, _2, _3));
 }
 
 R2GeometricPlanningContext::~R2GeometricPlanningContext()
@@ -134,14 +110,11 @@ void R2GeometricPlanningContext::initialize(const std::string& ros_namespace, co
     if (spec.group != "legs")
         ROS_WARN("R2GeometricPlanningContext is meant for the legs group.  Received request for group %s", spec.group.c_str());
 
-    // Extract IK solvers.  Very important this is done prior to the call to R2GeometricPlanningContext::initialize
+    // Extract IK solver.  Very important this is done prior to the call to R2GeometricPlanningContext::initialize
     const robot_model::JointModelGroup *legs = spec.model->getJointModelGroup("legs");
-    const robot_model::JointModelGroup *right_leg = spec.model->getJointModelGroup("right_leg");
-    const robot_model::JointModelGroup *left_leg = spec.model->getJointModelGroup("left_leg");
-
-    if (!legs || !right_leg || !left_leg)
+    if (!legs)
     {
-        ROS_ERROR("R2GeometricPlanningContext: Did not find groups for 'legs', 'right_leg', and 'left_leg'");
+        ROS_ERROR("R2GeometricPlanningContext: Could not find group configuration for 'legs'");
         return;
     }
 
@@ -150,18 +123,6 @@ void R2GeometricPlanningContext::initialize(const std::string& ros_namespace, co
         ROS_ERROR("Did not find kinematics solver for group legs");
     else
         legs_kinematics_ = slv.first.solver_instance_;
-
-    slv = right_leg->getGroupKinematics();
-    if (!slv.first)
-        ROS_ERROR("Did not find kinematics solver for group right_leg");
-    else
-        right_leg_kinematics_ = slv.first.solver_instance_;
-
-    slv = left_leg->getGroupKinematics();
-    if (!slv.first)
-        ROS_ERROR("Did not find kinematics solver for group left_leg");
-    else
-        left_leg_kinematics_ = slv.first.solver_instance_;
 
     GeometricFixedPosePlanningContext::initialize(ros_namespace, spec);
 
@@ -176,24 +137,19 @@ void R2GeometricPlanningContext::initialize(const std::string& ros_namespace, co
         interpolator_->ignoreJoint("r2/right_leg/joint4");
         interpolator_->ignoreJoint("r2/right_leg/joint6");
     }
-
-    // Do NOT interpolate these paths (yet)
-    //interpolate_ = false;
 }
 
 void R2GeometricPlanningContext::allocateStateSpace(const ModelBasedStateSpaceSpecification& state_space_spec)
 {
-    //JointModelStateSpacePtr state_space_(new JointModelStateSpace(state_space_spec));
-    //mbss_ = boost::static_pointer_cast<ModelBasedStateSpace>(state_space_);
+    // Call base class.  We are not actually overriding the state space part of this function
     GeometricFixedPosePlanningContext::allocateStateSpace(state_space_spec);
 
     // THIS IS ABSOLUTELY HORRIBLE.  MOVE THIS OUT OF HERE.
     // Do this (again) here to avoid seg fault because state space is not allocated in constructor and bind latches the parameter at execution time
     // Must also do it in the constructor, otherwise the context will not be found.
     // Must do it RIGHT HERE because the planner is allocated in the base class initialize call.
-    GeometricPlanningContext::registerPlannerAllocator("geometric::HiLo", boost::bind(&allocateHiLo<ompl::geometric::HiLo>, _1, _2, _3, mbss_, legs_kinematics_, right_leg_kinematics_, left_leg_kinematics_, path_constraints_));
-    GeometricPlanningContext::registerPlannerAllocator("geometric::BiHiLo", boost::bind(&allocateHiLo<ompl::geometric::BiHiLo>, _1, _2, _3, mbss_, legs_kinematics_, right_leg_kinematics_, left_leg_kinematics_, path_constraints_));
-    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, legs_kinematics_, path_constraints_));
+    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, legs_kinematics_, path_constraints_, 4));
+    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL1", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, legs_kinematics_, path_constraints_, 1));
 }
 
 // Simplify using the Cartesian distance minimizing interpolator
