@@ -317,7 +317,8 @@ ompl::geometric::XXL::Layer* ompl::geometric::XXL::getLayer(const std::vector<in
 int ompl::geometric::XXL::addThisState(base::State* state)
 {
     // Could have lots of threads in here.  Let's keep it clean
-    boost::mutex::scoped_lock lock(stateMutex_);
+    //boost::mutex::scoped_lock lock(stateMutex_);
+    //stateMutex_.lock();
 
     Motion* motion = new Motion();
     motion->state = state;
@@ -360,6 +361,7 @@ int ompl::geometric::XXL::addThisState(base::State* state)
             throw;
     }
 
+    //stateMutex_.unlock();
     return motion->index;
 }
 
@@ -372,7 +374,6 @@ int ompl::geometric::XXL::addGoalState(const base::State* state)
 {
     std::vector<int> proj;
     decomposition_->project(state, proj);
-
     boost::unordered_map<std::vector<int>, int>::iterator it = goalCount_.find(proj);
     if (it != goalCount_.end() && it->second > (int)maxGoalStatesPerRegion_)
         return -1;
@@ -406,13 +407,12 @@ int ompl::geometric::XXL::addGoalState(const base::State* state)
     }
 
     // Try to join goal states together (goal roadmap)
-    for(size_t i = 0; i < goalMotions_.size() - 1; ++i)
+    /*for(size_t i = 0; i < goalMotions_.size() - 1; ++i)
     {
         const Motion* other = motions_[goalMotions_[i]];
 
         if (lazyGraph_.edgeExists(motion->index, other->index) && si_->checkMotion(motion->state, other->state))
         {
-
             // remove this edge from lazy graph and add to real graph
             //double weight = lazyGraph_.getEdgeWeight(motion->index, other->index);  // bug here.  Edge exists, but weight does not.  Probably a bug in AdjacencyList after edge removal.
             double weight = si_->distance(motion->state, other->state);
@@ -428,7 +428,7 @@ int ompl::geometric::XXL::addGoalState(const base::State* state)
             // Connect these regions in the region graph
             updateRegionConnectivity(motion, other, 0);
         }
-    }
+    }*/
     return motion->index;
 }
 
@@ -581,19 +581,10 @@ void ompl::geometric::XXL::sampleAlongLead(Layer* layer, const std::vector<int>&
 
                     if (!seed)
                         continue;
-                        //break;
                 }
 
                 if (decomposition_->sampleFromRegion(lead[i], xstate, seed, layer->getLevel()))
-                {
-                    int idx = addState(xstate);
-                    newStates.push_back(idx);
-                    //newStates.push_back(addState(xstate));
-
-                    // debug
-                    if (motions_[idx]->levels[layer->getLevel()] != lead[i])
-                        OMPL_ERROR("SAL: Tried to sample from region %d in layer %d, but got a state in %d", lead[i], layer->getLevel(), motions_[idx]->levels[layer->getLevel()]);
-                }
+                    newStates.push_back(addState(xstate));
             }
         }
     }
@@ -601,7 +592,6 @@ void ompl::geometric::XXL::sampleAlongLead(Layer* layer, const std::vector<int>&
     // super special case
     if (lead.size() == 1 && !layer->hasSublayers())
     {
-        std::cout << "I'M SUPER SPESHHHALLL!!" << std::endl;
         std::vector<int> nbrs;
         decomposition_->getNeighborhood(lead[0], nbrs);
         nbrs.push_back(lead[0]);
@@ -619,20 +609,10 @@ void ompl::geometric::XXL::sampleAlongLead(Layer* layer, const std::vector<int>&
                 }
                 if (!seed)
                     continue;
-                    //break;
             }
 
             if (decomposition_->sampleFromRegion(lead[0], xstate, seed, layer->getLevel()))
-            {
-                //newStates.push_back(addState(xstate));
-
-                // debug
-                int idx = addState(xstate);
-                newStates.push_back(idx);
-
-                if (motions_[idx]->levels[layer->getLevel()] != lead[0])
-                    OMPL_ERROR("SPC: Tried to sample from region %d in layer %d, but got a state in %d", lead[0], layer->getLevel(), motions_[idx]->levels[layer->getLevel()]);
-            }
+                newStates.push_back(addState(xstate));
         }
     }
 
@@ -751,9 +731,6 @@ int ompl::geometric::XXL::expandToRegion(Layer* layer, int from, int to, bool us
             int id = addState(xstate);
             toMotion = motions_[id];
             newState = true;
-
-            if (motions_[id]->levels[layer->getLevel()] != to)
-                OMPL_ERROR("ETR: Tried to sample from region %d in layer %d, but got a state in %d", to, layer->getLevel(), motions_[id]->levels[layer->getLevel()]);
         }
         si_->freeState(xstate);
 
@@ -1056,6 +1033,12 @@ void ompl::geometric::XXL::connectRegion(Layer* layer, int reg, const base::Plan
 
     size_t maxIdx = (shuffledMotions.size() > 20 ? shuffledMotions.size() / 2 : shuffledMotions.size());
 
+    // This method will try to connect states in different connected components
+    // of the real graph together
+    #ifdef ENABLE_PROFILING
+    ompl::luna::Profiler::Begin("connectRegion");
+    #endif
+
     // Try to join disconnected states together within the region
     for(size_t i = 0; i < maxIdx && !ptc; ++i)
     {
@@ -1116,6 +1099,9 @@ void ompl::geometric::XXL::connectRegion(Layer* layer, int reg, const base::Plan
             }
         }
     }
+    #ifdef ENABLE_PROFILING
+    ompl::luna::Profiler::End("connectRegion");
+    #endif
 
     layer->connectRegion(reg);
     updateRegionProperties(layer, reg);
@@ -1149,6 +1135,10 @@ void ompl::geometric::XXL::connectRegions(Layer* layer, int r1, int r2, const ba
     size_t maxConnections = 25;
     size_t maxIdx1 = (all ? shuffledMotions1.size() : std::min(shuffledMotions1.size(), maxConnections));
     size_t maxIdx2 = (all ? shuffledMotions2.size() : std::min(shuffledMotions2.size(), maxConnections));
+
+    #ifdef ENABLE_PROFILING
+    ompl::luna::Profiler::Begin("connectRegions");
+    #endif
 
     // Try to join different connected components within the region
     for(size_t i = 0; i < maxIdx1 && !ptc; ++i)
@@ -1209,72 +1199,98 @@ void ompl::geometric::XXL::connectRegions(Layer* layer, int r1, int r2, const ba
 
     updateRegionProperties(layer, r1);
     updateRegionProperties(layer, r2);
+
+    #ifdef ENABLE_PROFILING
+    ompl::luna::Profiler::End("connectRegions");
+    #endif
 }
 
 void ompl::geometric::XXL::computeLead(Layer* layer, std::vector<int>& lead)
 {
     if (startMotions_.size() == 0)
         throw ompl::Exception("Cannot compute lead without at least one start state");
+    //if (goalMotions_.size() == 0)
+    //    throw ompl::Exception("Cannot compute lead without at least one goal state");
+
+    int start, end;
+
     if (goalMotions_.size() == 0)
-        throw ompl::Exception("Cannot compute lead without at least one goal state");
-
-    const Motion* s = NULL;
-    const Motion* e = NULL;
-
-    if (layer->getLevel() == 0)
     {
-        s = motions_[startMotions_[rng_.uniformInt(0, startMotions_.size()-1)]];
-        e = motions_[goalMotions_[rng_.uniformInt(0, goalMotions_.size()-1)]];
+        const Motion* s = motions_[startMotions_[rng_.uniformInt(0, startMotions_.size()-1)]];
+        start = s->levels[layer->getLevel()];
+
+        if (topLayer_->numRegions() == 1)
+            end = 0;
+        else
+        {
+            do
+            {
+                end = rng_.uniformInt(0, topLayer_->numRegions()-1);
+            } while (start == end);
+        }
     }
-    else  // sublayers
+    else
     {
-        std::set<int> startComponents;
-        for(size_t i = 0; i < startMotions_.size(); ++i)
-            startComponents.insert(realGraph_.getComponentID(startMotions_[i]));
+        const Motion* s = NULL;
+        const Motion* e = NULL;
 
-        // pick a state at random that is connected to the start
-        do
+        if (layer->getLevel() == 0)
         {
-            const Region& reg = layer->getRegion(rng_.uniformInt(0, layer->numRegions()-1));
-            if (reg.motionsInTree.size())
-            {
-                int random = rng_.uniformInt(0, reg.motionsInTree.size()-1);
-
-                int cid = realGraph_.getComponentID(reg.motionsInTree[random]);
-                for(std::set<int>::const_iterator it = startComponents.begin(); it != startComponents.end(); ++it)
-                    if (cid == *it)
-                    {
-                        s = motions_[reg.motionsInTree[random]];
-                        break;
-                    }
-            }
-        } while (s == NULL);
-
-        std::set<int> goalComponents;
-        for(size_t i = 0; i < goalMotions_.size(); ++i)
-            goalComponents.insert(realGraph_.getComponentID(goalMotions_[i]));
-
-        // pick a state at random that is connected to the goal
-        do
+            s = motions_[startMotions_[rng_.uniformInt(0, startMotions_.size()-1)]];
+            e = motions_[goalMotions_[rng_.uniformInt(0, goalMotions_.size()-1)]];
+        }
+        else  // sublayers
         {
-            const Region& reg = layer->getRegion(rng_.uniformInt(0, layer->numRegions()-1));
-            if (reg.motionsInTree.size())
-            {
-                int random = rng_.uniformInt(0, reg.motionsInTree.size()-1);
+            std::set<int> startComponents;
+            for(size_t i = 0; i < startMotions_.size(); ++i)
+                startComponents.insert(realGraph_.getComponentID(startMotions_[i]));
 
-                int cid = realGraph_.getComponentID(reg.motionsInTree[random]);
-                for(std::set<int>::const_iterator it = goalComponents.begin(); it != goalComponents.end(); ++it)
-                    if (cid == *it)
-                    {
-                        e = motions_[reg.motionsInTree[random]];
-                        break;
-                    }
-            }
-        } while (e == NULL);
+            // pick a state at random that is connected to the start
+            do
+            {
+                const Region& reg = layer->getRegion(rng_.uniformInt(0, layer->numRegions()-1));
+                if (reg.motionsInTree.size())
+                {
+                    int random = rng_.uniformInt(0, reg.motionsInTree.size()-1);
+
+                    int cid = realGraph_.getComponentID(reg.motionsInTree[random]);
+                    for(std::set<int>::const_iterator it = startComponents.begin(); it != startComponents.end(); ++it)
+                        if (cid == *it)
+                        {
+                            s = motions_[reg.motionsInTree[random]];
+                            break;
+                        }
+                }
+            } while (s == NULL);
+
+            std::set<int> goalComponents;
+            for(size_t i = 0; i < goalMotions_.size(); ++i)
+                goalComponents.insert(realGraph_.getComponentID(goalMotions_[i]));
+
+            // pick a state at random that is connected to the goal
+            do
+            {
+                const Region& reg = layer->getRegion(rng_.uniformInt(0, layer->numRegions()-1));
+                if (reg.motionsInTree.size())
+                {
+                    int random = rng_.uniformInt(0, reg.motionsInTree.size()-1);
+
+                    int cid = realGraph_.getComponentID(reg.motionsInTree[random]);
+                    for(std::set<int>::const_iterator it = goalComponents.begin(); it != goalComponents.end(); ++it)
+                        if (cid == *it)
+                        {
+                            e = motions_[reg.motionsInTree[random]];
+                            break;
+                        }
+                }
+            } while (e == NULL);
+        }
+
+        start = s->levels[layer->getLevel()];
+        end = e->levels[layer->getLevel()];
     }
 
-    int start = s->levels[layer->getLevel()];
-    int end = e->levels[layer->getLevel()];
+
     bool success = false;
 
     if (start == end)
@@ -1297,8 +1313,8 @@ void ompl::geometric::XXL::computeLead(Layer* layer, std::vector<int>& lead)
 
 bool ompl::geometric::XXL::searchForPath(Layer* layer, const ompl::base::PlannerTerminationCondition& ptc)
 {
-    if (goalMotions_.size() == 0) // cannot compute a lead without a goal state
-        return false;
+    //if (goalMotions_.size() == 0) // cannot compute a lead without a goal state
+    //    return false;
 
     // If there are promising subregions, pick one of them most of the time
     double p = layer->connectibleRegions() / ((double)layer->connectibleRegions() + 1);
@@ -1312,11 +1328,19 @@ bool ompl::geometric::XXL::searchForPath(Layer* layer, const ompl::base::Planner
     }
     else
     {
-        OMPL_INFORM("%s in layer %d", __FUNCTION__, layer->getLevel());
+        //OMPL_DEBUG("%s: layer %d(%d)", __FUNCTION__, layer->getLevel(), layer->getID());
 
         std::vector<int> lead;
         computeLead(layer, lead);
         layer->markLead(lead);  // update weights along weight
+
+        #ifdef DEBUG_PLANNER  // debugui
+            std::ofstream fout("planner_debug.txt", std::ios_base::app);
+            fout << "lead " << layer->getLevel() << " " << layer->getID() << " " << lead.size() << " ";
+            for(size_t i = 0; i < lead.size(); ++i)
+                fout << lead[i] << " ";
+            fout << std::endl;
+        #endif
 
         // sample states where they are needed along lead
         sampleAlongLead(layer, lead, ptc);
@@ -1371,8 +1395,8 @@ ompl::base::PlannerStatus ompl::geometric::XXL::solve(const ompl::base::PlannerT
     }
 
     // Start goal sampling
-    kill_ = false;
-    goalStateThread_ = boost::thread(boost::bind(&ompl::geometric::XXL::getGoalStates, this, ptc));
+    //kill_ = false;
+    //goalStateThread_ = boost::thread(boost::bind(&ompl::geometric::XXL::getGoalStates, this, ptc));
 
     // Adding all start states
     while (const base::State *s = pis_.nextStart())
@@ -1382,7 +1406,7 @@ ompl::base::PlannerStatus ompl::geometric::XXL::solve(const ompl::base::PlannerT
     if (startMotions_.size() == 0)
     {
         kill_ = true;
-        goalStateThread_.join();
+        //goalStateThread_.join();
 
         OMPL_ERROR("%s: No valid start states", getName().c_str());
         return base::PlannerStatus::INVALID_START;
@@ -1391,19 +1415,138 @@ ompl::base::PlannerStatus ompl::geometric::XXL::solve(const ompl::base::PlannerT
     OMPL_INFORM("%s: Operating over %d dimensional, %d layer decomposition with %d regions per layer", getName().c_str(), decomposition_->getDimension(), decomposition_->numLayers(), decomposition_->getNumRegions());
 
     bool foundSolution = false;
+    #ifdef ENABLE_PROFILING
+        ompl::luna::Profiler::Clear();
+        ompl::luna::Profiler::Start();
+    #endif
+
     while (!ptc && !foundSolution)
+    {
+        #ifdef ENABLE_PROFILING
+        if (!ompl::luna::Profiler::Running())
+            throw ompl::Exception("profiler not running");
+        #endif
+
+        // double deltaT = 0.1;
+        // if (motions_.size() < 25000)  // capping this seems to help focus the search more
+        // {
+        //     ompl::luna::Profiler::Begin("sample");
+        //     sampleStates(base::plannerOrTerminationCondition(ptc, base::timedPlannerTerminationCondition(deltaT)));
+        //     ompl::luna::Profiler::End("sample");
+        // }
+        // // TODO: As search progresses, increase time for search and decrease time for sampling
+        // //foundSolution = searchForPath(topLayer_, base::plannerOrTerminationCondition(ptc, base::timedPlannerTerminationCondition(5.0 * deltaT)));
+
+        // ompl::luna::Profiler::Begin("searchForPath");
+        // foundSolution = searchForPath(topLayer_, ptc);
+        // ompl::luna::Profiler::End("searchForPath");
+
+        getGoalStates();  // non-threaded version
         foundSolution = searchForPath(topLayer_, ptc);
+    }
+
+    // if (!foundSolution && constructSolutionPath())
+    // {
+    //     OMPL_ERROR("Tripped and fell over a solution path.");
+    //     foundSolution = true;
+    // }
+
+    #ifdef ENABLE_PROFILING
+        ompl::luna::Profiler::Stop();
+        ompl::luna::Profiler::Status();
+    #endif
 
     OMPL_INFORM("%s: Created %lu states (%lu start, %lu goal); %u are connected", getName().c_str(), motions_.size(), startMotions_.size(), goalMotions_.size(), statesConnectedInRealGraph_);
 
+    #ifdef DEBUG_PLANNER
+        writeDebugOutput();
+    #endif
+
     // Stop goal sampling thread, if it is still running
     kill_ = true;
-    goalStateThread_.join();
+    //goalStateThread_.join();
 
     if (foundSolution)
         return ompl::base::PlannerStatus::EXACT_SOLUTION;
     else
         return ompl::base::PlannerStatus::TIMEOUT;
+}
+
+void ompl::geometric::XXL::writeDebugOutput() const
+{
+#ifdef DEBUG_PLANNER
+    std::ofstream fout("planner_debug.txt", std::ios_base::app);
+
+    if (!fout)
+        throw ompl::Exception("Failed to open debug output");
+
+    // Roadmap
+    // All vertices
+    unsigned int dim = si_->getStateSpace()->getDimension();
+    for(size_t i = 0; i < motions_.size(); ++i)
+    {
+        bool isStart = false;
+        bool isGoal = false;
+
+        for(size_t j = 0; j < startMotions_.size(); ++j)
+            if (startMotions_[j] == (int)i)
+                isStart = true;
+
+        for(size_t j = 0; j < goalMotions_.size(); ++j)
+            if (goalMotions_[j] == (int)i)
+                isGoal = true;
+
+        // metadata
+        fout << "vertex " << i << " ";
+        if (isStart)
+            fout << "start ";
+        else if (isGoal)
+            fout << "goal ";
+        else fout << "normal ";
+        for(size_t j = 0; j < motions_[i]->levels.size(); ++j)
+            fout << motions_[i]->levels[j] << " ";
+
+        const double* angles = motions_[i]->state->as<PlanarManipulatorStateSpace::StateType>()->values;
+        for(unsigned int j = 0; j < dim; ++j)
+            fout << angles[j] << " ";
+        fout << std::endl;
+    }
+
+    // edges
+    for(size_t i = 0; i < motions_.size(); ++i)
+    {
+        std::vector<int> nbrs;
+        realGraph_.getNeighbors(i, nbrs);
+        for(size_t j = 0; j < nbrs.size(); ++j)
+            fout << "edge " << i << " " << nbrs[j] << std::endl;
+
+        // nbrs.clear();
+        // lazyGraph_.getNeighbors(i, nbrs);
+        // for(size_t j = 0; j < nbrs.size(); ++j)
+        //     fout << "lazyedge " << i << " " << nbrs[j] << std::endl;
+    }
+
+    // weights
+    Layer* layer = topLayer_;
+    const std::vector<double>& weights = layer->getWeights();
+    fout << "weights " << layer->getLevel() << " " << layer->getID() << " ";
+    for(size_t i = 0; i < weights.size(); ++i)
+        fout << weights[i] << " ";
+    fout << std::endl;
+
+    // subregions of interest
+    for(int i = 0; i < layer->connectibleRegions(); ++i)
+    {
+        Layer* sublayer = layer->getSublayer(layer->connectibleRegion(i));
+        const std::vector<double>& subweights = sublayer->getWeights();
+        fout << "weights " << sublayer->getLevel() << " " << sublayer->getID() << " ";
+        for(size_t j = 0; j < subweights.size(); ++j)
+            fout << subweights[j] << " ";
+        fout << std::endl;
+    }
+
+    fout.close();
+#endif
 }
 
 bool ompl::geometric::XXL::isStartState(int idx) const
@@ -1500,10 +1643,37 @@ void ompl::geometric::XXL::getPlannerData(ompl::base::PlannerData& data) const
     }
 }
 
-void ompl::geometric::XXL::getGoalStates(const base::PlannerTerminationCondition &ptc)
+void ompl::geometric::XXL::getGoalStates()
 {
-    base::Goal* goal = pdef_->getGoal().get();
-    while(!ptc && !kill_ && /*pis_.haveMoreGoalStates() &&*/ goalMotions_.size() < maxGoalStates_)
+    int newCount = 0;
+    int maxCount = 10;
+    while (pis_.haveMoreGoalStates() && newCount < maxCount /*&& goalMotions_.size() < maxGoalStates_*/)
+    {
+        const base::State* st = pis_.nextGoal();
+        if (st == NULL)
+            break;
+
+        newCount++;
+
+        double dist = std::numeric_limits<double>::infinity();  // min distance to another goal state
+        for(size_t i = 0; i < goalMotions_.size(); ++i)
+        {
+            double d = si_->distance(motions_[goalMotions_[i]]->state, st);
+            if (d < dist)
+                dist = d;
+        }
+
+        // Keep goals diverse.  TODO: GoalLazySamples does something similar to this.
+        if (dist > 0.5)
+            addGoalState(st);
+    }
+}
+
+void ompl::geometric::XXL::getGoalStates(const base::PlannerTerminationCondition &/*ptc*/)
+{
+    throw ompl::Exception("Not thread safe");
+    /*base::Goal* goal = pdef_->getGoal().get();
+    while(!ptc && !kill_ && goalMotions_.size() < maxGoalStates_)
     {
         if (!pis_.haveMoreGoalStates())
         {
@@ -1528,89 +1698,9 @@ void ompl::geometric::XXL::getGoalStates(const base::PlannerTerminationCondition
             addGoalState(st);
     }
 
-
-    /*base::Goal* goal = pdef_->getGoal().get();
-    base::GoalLazySamples* gls = dynamic_cast<base::GoalLazySamples*>(goal);
-    if (!gls) // goal sampleable region
-    {
-        base::GoalSampleableRegion* gsr = dynamic_cast<base::GoalSampleableRegion*>(goal);
-        if (!gsr)
-        {
-            OMPL_ERROR("Cannot cast goal to GoalSampleableRegion.  Goal sampling thread not running");
-            return;
-        }
-
-        OMPL_INFORM("%s: Goal sampling thread active", getName().c_str());
-
-        base::State* xstate = si_->allocState();
-
-        while(!ptc && !kill_ && goalMotions_.size() < maxGoalStates_ && goalMotions_.size() < gsr->maxSampleCount() && gsr->couldSample())
-        {
-            if (!gsr->canSample())  // no goal states available yet
-                usleep(100);
-            else
-            {
-                //OMPL_INFORM("Sampling goal state");
-                gsr->sampleGoal(xstate);
-
-                double dist = std::numeric_limits<double>::infinity();
-                for(size_t i = 0; i < goalMotions_.size(); ++i)
-                {
-                    double d = si_->distance(motions_[goalMotions_[i]]->state, xstate);
-                    if (d < dist)
-                        dist = d;
-                }
-
-                // Keep goals diverse
-                if (dist > 0.5)
-                    addGoalState(xstate);
-            }
-        }
-
-        if (goalMotions_.size() >= maxGoalStates_)
-            OMPL_INFORM("%s: Reached max state count in goal sampling thread", getName().c_str());
-
-        si_->freeState(xstate);
-    }
-    else  // goal lazy samples
-    {
-        OMPL_INFORM("%s: Goal sampling thread active", getName().c_str());
-        while (!ptc && !kill_ && goalMotions_.size() < maxGoalStates_)
-        {
-            if (gls->getStateCount() > goalMotions_.size())
-            {
-                // keep goal states capped at maxGoalStates, even if there are additional states
-                size_t numGoalStates = gls->getStateCount() < maxGoalStates_ ? gls->getStateCount() : maxGoalStates_;
-                for(size_t i = goalMotions_.size(); i < numGoalStates && !kill_ && !ptc; ++i)
-                {
-                    const base::State* st = gls->getState(i);
-
-                    if (!si_->isValid(st))
-                        OMPL_ERROR("GOAL STATE IS INVALID");
-
-                    double dist = std::numeric_limits<double>::infinity();
-                    for(size_t j = 0; j < goalMotions_.size() && !kill_ && !ptc; ++j)
-                    {
-                        double d = si_->distance(motions_[goalMotions_[j]]->state, st);
-                        if (d < dist)
-                            dist = d;
-                    }
-
-                    // Keep goals diverse
-                    // TODO: GoalLazySamples does this for us.
-                    if (dist > 0.5)
-                        addGoalState(st);
-
-                    //addGoalState(st);
-                }
-            }
-            usleep(100);
-        }
-    }*/
-
     if (goalMotions_.size() >= maxGoalStates_)
        OMPL_INFORM("%s: Reached max state count in goal sampling thread", getName().c_str());
-    OMPL_INFORM("%s: Goal sampling thread ceased", getName().c_str());
+    OMPL_INFORM("%s: Goal sampling thread ceased", getName().c_str());*/
 }
 
 void ompl::geometric::XXL::getNeighbors(int rid, const std::vector<double>& weights, std::vector<std::pair<int, double> >& neighbors) const
