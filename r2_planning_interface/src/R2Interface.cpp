@@ -674,6 +674,28 @@ const moveit_msgs::WorkspaceParameters& R2Interface::getWorkspace() const
     return workspace_;
 }
 
+void R2Interface::createMotionPlanRequest(const moveit_msgs::RobotState& start_state, const moveit_msgs::Constraints& path_constraints,
+                                          const std::vector<moveit_msgs::Constraints>& goal_constraints, const std::string& group_name, double max_time,
+                                          const std::string& planner_name, unsigned int tries, moveit_msgs::MotionPlanRequest& request) const
+{
+    request.planner_id = planner_name;
+    request.group_name = group_name;
+    request.num_planning_attempts = tries;
+    request.allowed_planning_time = max_time;
+
+    // Workspace bounds
+    request.workspace_parameters = workspace_;
+
+    // Setting start state
+    request.start_state = start_state;
+
+    // Setting goal constraints
+    request.goal_constraints = goal_constraints;
+
+    // Setting path constraints - constraints that must be respected at all times
+    request.path_constraints = path_constraints;
+}
+
 bool R2Interface::plan(const moveit_msgs::RobotState& start_state, const geometry_msgs::PoseStamped& goal_pose,
                        const std::string& goal_link, const std::string& group_name,
                        double max_time, const std::string& planner_name, moveit_msgs::RobotTrajectory& trajectory_msg,
@@ -827,23 +849,26 @@ bool R2Interface::plan(const moveit_msgs::RobotState& start_state, const moveit_
     moveit_msgs::GetMotionPlan::Request  plan_req;
     moveit_msgs::GetMotionPlan::Response plan_resp;
 
+    createMotionPlanRequest(start_state, path_constraints, goal_constraints, group_name,
+                            max_time, planner_name, tries, plan_req.motion_plan_request);
+
     // Generic planning information
-    plan_req.motion_plan_request.planner_id = planner_name;
-    plan_req.motion_plan_request.group_name = group_name;
-    plan_req.motion_plan_request.num_planning_attempts = tries;
-    plan_req.motion_plan_request.allowed_planning_time = max_time;
+    // plan_req.motion_plan_request.planner_id = planner_name;
+    // plan_req.motion_plan_request.group_name = group_name;
+    // plan_req.motion_plan_request.num_planning_attempts = tries;
+    // plan_req.motion_plan_request.allowed_planning_time = max_time;
 
-    // Workspace bounds
-    plan_req.motion_plan_request.workspace_parameters = workspace_;
+    // // Workspace bounds
+    // plan_req.motion_plan_request.workspace_parameters = workspace_;
 
-    // Setting start state
-    plan_req.motion_plan_request.start_state = start_state;
+    // // Setting start state
+    // plan_req.motion_plan_request.start_state = start_state;
 
-    // Setting goal constraints
-    plan_req.motion_plan_request.goal_constraints = goal_constraints;
+    // // Setting goal constraints
+    // plan_req.motion_plan_request.goal_constraints = goal_constraints;
 
-    // Setting path constraints - constraints that must be respected at all times
-    plan_req.motion_plan_request.path_constraints = path_constraints;
+    // // Setting path constraints - constraints that must be respected at all times
+    // plan_req.motion_plan_request.path_constraints = path_constraints;
 
     // One motion plan, pretty please
     if(plan_client.call(plan_req, plan_resp))

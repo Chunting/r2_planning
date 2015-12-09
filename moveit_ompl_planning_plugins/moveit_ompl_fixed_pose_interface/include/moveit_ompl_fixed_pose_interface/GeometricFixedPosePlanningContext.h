@@ -44,7 +44,11 @@
 namespace ompl_interface
 {
 
-/// \brief Definition of a geometric planning context that respects a single pose constraint
+/// \brief Definition of a geometric planning context that respects a SINGLE pose constraint
+///
+/// This context operates by planning in joint space using the typical methods, but augments
+/// the interpolation process to ensure an arbitrary base link remains fixed during planning.
+/// Useful for humanoid type robots whose kinematic base may change during execution.
 class GeometricFixedPosePlanningContext : public GeometricPlanningContext
 {
 public:
@@ -74,6 +78,10 @@ protected:
     robot_state::RobotStatePtr work_state_1_;
     robot_state::RobotStatePtr work_state_2_;
     robot_state::RobotStatePtr work_state_3_;
+
+    /// \brief Name of the link whose pose is fixed during planning
+    std::string fixed_link_;
+
 };
 
 }

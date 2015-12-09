@@ -153,6 +153,11 @@ public:
     // Retrieve the workspace of the robot
     const moveit_msgs::WorkspaceParameters& getWorkspace() const;
 
+    // Create a motion plan request message for the given query input
+    void createMotionPlanRequest(const moveit_msgs::RobotState& start_state, const moveit_msgs::Constraints& path_constraints,
+                                 const std::vector<moveit_msgs::Constraints>& goal_constraints, const std::string& group_name, double max_time,
+                                 const std::string& planner_name, unsigned int tries, moveit_msgs::MotionPlanRequest& request) const;
+
     // Compute a plan to move the goal_link to the goal_pose_offset (in the goal_link frame) from the given
     // start state
     bool plan(const moveit_msgs::RobotState& start_state, const geometry_msgs::PoseStamped& goal_pose,

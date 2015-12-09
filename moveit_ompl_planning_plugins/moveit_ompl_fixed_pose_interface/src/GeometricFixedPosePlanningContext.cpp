@@ -79,8 +79,32 @@ void GeometricFixedPosePlanningContext::initialize(const std::string& ros_namesp
     const std::vector<moveit_msgs::PositionConstraint>& pos_constraints = path_constraints_->getPositionConstraints();
     const std::vector<moveit_msgs::OrientationConstraint>& orn_constraints = path_constraints_->getOrientationConstraints();
 
-    if (pos_constraints.size() != 1 || orn_constraints.size() != 1)
-        ROS_WARN("Expected exactly one position and one orientation constraint");
+    // Figure out which link is fully constrained
+    fixed_link_ = "";
+    for(size_t i = 0; i < pos_constraints.size(); ++i)
+    {
+        for(size_t j = 0; j < orn_constraints.size(); ++j)
+        {
+            if (pos_constraints[i].link_name == orn_constraints[j].link_name)
+            {
+                if (fixed_link_.size() > 0)
+                {
+                    ROS_ERROR("GeometricFixedPosePlanningContext: There is more than link fully constrained.");
+                    initialized_ = false;
+                    return;
+                }
+                fixed_link_ = pos_constraints[i].link_name;
+            }
+        }
+    }
+
+    if (fixed_link_ == "")
+        ROS_WARN("GeometricFixedPosePlanningContext: No link pose is fully constrained");
+    else ROS_INFO("GeometricFixedPosePlanningContext: '%s' is fixed", fixed_link_.c_str());
+
+
+    // if (pos_constraints.size() != 1 || orn_constraints.size() != 1)
+    //     ROS_WARN("Expected exactly one position and one orientation constraint.  Got %lu position and %lu orientation", pos_constraints.size(), orn_constraints.size());
 
     work_state_1_.reset(new robot_state::RobotState(mbss_->getRobotModel()));
     work_state_1_->setToDefaultValues(); // VERY IMPORTANT
@@ -115,39 +139,32 @@ bool GeometricFixedPosePlanningContext::interpolate(const ompl::base::State *fro
     work_state_3_->update();
 
     // fix work_state_3_ to satisfy to the path constraints
-    if (path_constraints_)
+    if (fixed_link_.size() > 0)
     {
-        const std::vector<moveit_msgs::PositionConstraint>& pos_constraints = path_constraints_->getPositionConstraints();
-        const std::vector<moveit_msgs::OrientationConstraint>& orn_constraints = path_constraints_->getOrientationConstraints();
-        assert(pos_constraints.size() == 1);
-        assert(orn_constraints.size() == 1);
-        assert(pos_constraints[0].link_name == orn_constraints[0].link_name);
-
-        const std::string& link_name = pos_constraints[0].link_name;
-
         // One of the input states must satisfy the path constraints - typically the 'from' state.
         // Depending on the planner, however, we may interpolate 'backward', so we have to figure out
         // at runtime which state is the satisfying one.
         if (path_constraints_->decide(*(work_state_2_.get())).satisfied)
             shiftStateByError(work_state_3_, work_state_3_->getRobotModel()->getRootJoint(),
-                              link_name, work_state_2_->getGlobalLinkTransform(link_name));
+                              fixed_link_, work_state_2_->getGlobalLinkTransform(fixed_link_));
         else
         {
-            assert(path_constraints_->decide(*(work_state_1_.get())).satisfied);
+            assert(path_constraints_->decide(*(work_state_1_.get())).satisfied);  // this one had better be true.
             shiftStateByError(work_state_3_, work_state_3_->getRobotModel()->getRootJoint(),
-                              link_name, work_state_1_->getGlobalLinkTransform(link_name));
+                              fixed_link_, work_state_1_->getGlobalLinkTransform(fixed_link_));
         }
     }
 
     mbss_->copyToOMPLState(state, *(work_state_3_.get()));
 
     // Do NOT EVER return false from this function.
-    // A false return will trigger the "default" interpolation scheme, which will violate all the constraints
+    // A false return will trigger the "default" linear interpolation scheme, which
+    // will surely violate all of the path constraints
     return true;
 }
 
 void GeometricFixedPosePlanningContext::shiftStateByError(robot_state::RobotStatePtr state, const robot_state::JointModel* base_joint,
-                                                              const std::string& link, const Eigen::Affine3d& desired_pose) const
+                                                          const std::string& link, const Eigen::Affine3d& desired_pose) const
 {
     if (base_joint->getType() != robot_state::JointModel::FLOATING)
     {
@@ -184,6 +201,7 @@ void GeometricFixedPosePlanningContext::shiftStateByError(robot_state::RobotStat
 
 void GeometricFixedPosePlanningContext::allocateStateSpace(const ModelBasedStateSpaceSpecification& state_space_spec)
 {
+    // This context MUST be configured to plan in joint space
     JointModelStateSpacePtr state_space_(new JointModelStateSpace(state_space_spec));
     mbss_ = boost::static_pointer_cast<ModelBasedStateSpace>(state_space_);
 }
