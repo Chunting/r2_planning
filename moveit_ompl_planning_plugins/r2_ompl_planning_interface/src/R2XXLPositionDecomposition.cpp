@@ -44,13 +44,32 @@ R2XXLPositionDecomposition::R2XXLPositionDecomposition(const ompl::base::RealVec
                                                        kinematic_constraints::KinematicConstraintSetPtr constraints,
                                                        ompl::base::SpaceInformationPtr si) : ompl::geometric::XXLPositionDecomposition(bounds, slices, diagonalEdges)
 {
-    mbss_ = mbss;
+    // Quick sanity check on the inputs
     if (!mbss_)
     {
-        ROS_ERROR("State space is null");
+        ROS_ERROR("%s: State space is NULL", __FUNCTION__);
         throw;
     }
 
+    if (!si_)
+    {
+        ROS_ERROR("%s: Space information is NULL", __FUNCTION__);
+        throw;
+    }
+
+    if (!legs_kinematics)
+    {
+        ROS_ERROR("%s: legs_kinematics is NULL", __FUNCTION__);
+        throw;
+    }
+
+    if (!constraints)
+    {
+        ROS_ERROR("%s: constraints is NULL", __FUNCTION__);
+        throw;
+    }
+
+    mbss_ = mbss;
     si_ = si;
 
     moveit_r2_kinematics::MoveItR2TreeKinematicsPlugin* treePlugin = dynamic_cast<moveit_r2_kinematics::MoveItR2TreeKinematicsPlugin*>(legs_kinematics.get());
@@ -101,7 +120,8 @@ R2XXLPositionDecomposition::R2XXLPositionDecomposition(const ompl::base::RealVec
         throw;
     }
 
-    // Total hack to populate projection links
+    // Total hack to populate projection links.  Make sure these links are inserted
+    // in topological order from the kinematic root.
     // TODO: Make this not hackey.
     projected_links_.push_back("r2/robot_world");
     if (pos_constraints[0].link_name.find("left") != std::string::npos) // left leg is fixed, so project the right foot
@@ -131,7 +151,7 @@ void R2XXLPositionDecomposition::sampleCoordinateFromRegion(int r, std::vector<d
 
         double range = cellSizes_[i] - tolerance;
         if (range < 0)
-            throw ompl::Exception("Cannot sample accurately from regions.  Cell sizes are smaller than IK solver tolerance");
+            throw ompl::Exception("R2XXLPositionDecomposition: Cannot sample accurately from regions.  Cell sizes are smaller than IK solver tolerance");
 
         double low = bounds_.low[i] + (cell[i] * cellSizes_[i]) + tolerance; // lower bound of the cell
         coord[i] = rng_.uniformReal(low, low + range);           // some point in the valid range of the cell
@@ -153,18 +173,6 @@ void R2XXLPositionDecomposition::initializeRequest(int reg, int layer, const omp
     std::vector<double> joint_seed;
     if (!seed)
         seed_state_->setToRandomPositions();
-    // else seed_state_ is already populated with seed values
-    else
-    {
-        // debug
-        // std::vector<int> proj;
-        // project(seed, proj);
-
-        // std::cout << "Sampling from region " << reg << " (layer " << layer << ").  Seed projection: ";
-        // for(size_t i = 0; i < proj.size(); ++i)
-        //     std::cout << proj[i] << " ";
-        // std::cout << std::endl;
-    }
 
     joint_seed.resize(all_joints_index_.size());
     for(unsigned int i = 0; i < all_joints_index_.size(); ++i)
@@ -181,15 +189,12 @@ void R2XXLPositionDecomposition::initializeRequest(int reg, int layer, const omp
 
     request.setWorldState(seed_state_->getGlobalLinkTransform("r2/robot_world")); // this is where the body is
 
-    //Eigen::Affine3d link_pose = seed_state_->getGlobalLinkTransform(projected_links_[layer]);
-    // link_pose.translation()(0) = coord[0];
-    // link_pose.translation()(1) = coord[1];
-    // link_pose.translation()(2) = coord[2];
-
     // Gaussian sampling of rotation with mean at current rotation
     // using quaternion representation
     double stdDev = 0.1;
-    double rotDev = (2. * stdDev) / boost::math::constants::root_three<double>();
+    // http://apod.nasa.gov/htmltest/gifcity/sqrt3.1mil  <-- Fun fact alert about a number we are about to use.
+    // boost::math::constants::root_three<double>();  // root_three is a newer addition to Boost.  Just hard coding something for now.
+    double rotDev = (2. * stdDev) / 1.73205080757;  // crazy number is sqrt(3)
     double x = rng_.gaussian(0, rotDev);
     double y = rng_.gaussian(0, rotDev);
     double z = rng_.gaussian(0, rotDev);
@@ -217,25 +222,10 @@ void R2XXLPositionDecomposition::initializeRequest(int reg, int layer, const omp
     geometry_msgs::Pose link_pose_msg;
     tf::poseEigenToMsg(link_pose, link_pose_msg);
     request.addLinkPose(projected_links_[layer], link_pose_msg);
-
-
-    /// debug
-    // const std::vector<double>& world_rpy = request.getWorldStateRPY();
-    // std::cout << "World frame: " << std::endl;
-    // std::cout << seed_state_->getGlobalLinkTransform("r2/robot_world").matrix() << std::endl;
-    // if (fabs(world_rpy[0]) < 1e-6)
-    //     std::cout << "world X variable: " << seed_state_->getVariablePosition("virtual_joint/trans_x") << std::endl;
-    // ROS_INFO("World state: XYZ(%f %f %f)  RPY(%f %f %f)", world_rpy[0], world_rpy[1], world_rpy[2], world_rpy[3], world_rpy[4], world_rpy[5]);
-    // Eigen::Vector3d rpy = link_pose.rotation().eulerAngles(0,1,2);
-    // Eigen::Vector3d trans = link_pose.translation();
-    // ROS_INFO("Sampled coordinate: (%f %f %f)", coord[0], coord[1], coord[2]);
-    // ROS_INFO("Desired pose state: XYZ(%f %f %f)  RPY(%f %f %f)", trans[0], trans[1], trans[2], rpy[0], rpy[1], rpy[2]);
 }
 
 bool R2XXLPositionDecomposition::sampleRemainingJoints(int layer, ompl::base::State* s, const moveit_r2_kinematics::TreeIkResponse& response) const
 {
-    //std::cout << "sampleRemainingJoints PREstart (" << work_state_->getGlobalLinkTransform("r2/robot_world").translation().transpose() << ")" << std::endl;
-
     // Setting joint values in work_state
     const std::vector<double>& new_values = response.getJointValues();
     for(size_t i = 0; i < group_joint_index_.size(); ++i)
@@ -266,8 +256,6 @@ bool R2XXLPositionDecomposition::sampleRemainingJoints(int layer, ompl::base::St
     mbss_->copyToOMPLState(s, *work_state_);
     work_state_->update();
 
-    //std::cout << "sampleRemainingJoints INIT done (" << work_state_->getGlobalLinkTransform("r2/robot_world").translation().transpose() << ")" << std::endl;
-
     if (si_->isValid(s))  // win
     {
         //ROS_WARN("sampleRemainingJoints: No real work to do");
@@ -275,14 +263,12 @@ bool R2XXLPositionDecomposition::sampleRemainingJoints(int layer, ompl::base::St
     }
     else if (layer == (projected_links_.size() - 1)) // there are no free joints to play with to try and find a valid state
         return false;
-    else
+    else  // tweak the joints down the hierarchy to try and find a valid state
     {
-        //std::cout << "sampleRemainingJoints start (" << work_state_->getGlobalLinkTransform("r2/robot_world").translation().transpose() << ")" << std::endl;
-
         int maxAttempts = 5;  // try this many joint configurations
         double variance = 0.1;
 
-        // TOTAL HACK
+        // TOTAL HACK to figure out which leg is the base
         bool left_leg_constrained = fixed_link_name_.find("left") != std::string::npos;
         moveit::core::RobotModelConstPtr model = work_state_->getRobotModel();
         const robot_model::JointModelGroup* free_group = model->getJointModelGroup(left_leg_constrained ? "right_leg" : "left_leg");
@@ -320,7 +306,6 @@ bool R2XXLPositionDecomposition::sampleRemainingJoints(int layer, ompl::base::St
     }
 
     return false;
-
 }
 
 bool R2XXLPositionDecomposition::sampleFromRegion(int r, ompl::base::State* s, const ompl::base::State* seed, int layer) const
@@ -339,11 +324,11 @@ bool R2XXLPositionDecomposition::sampleFromRegion(int r, ompl::base::State* s, c
     //    Then figure out something with the other leg - possibly random joint positions until we find something valid
     // After a painful process, #3 wins.  Implementation below.
 
+    // Extreeeeeeme sanity check
     if (layer >= (int)projected_links_.size())
         throw ompl::Exception("Layer is out of range");
     if (!seed && layer > 0)
         throw ompl::Exception("You must set the seed value to sample from a layer > 0");
-
     if (!tree_kinematics_)
     {
         ROS_ERROR("%s: Tree kinematics not initialized", __FUNCTION__);

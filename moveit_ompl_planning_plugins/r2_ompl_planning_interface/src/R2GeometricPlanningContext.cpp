@@ -52,17 +52,26 @@ static ompl::base::PlannerPtr allocateXXL(const ompl::base::SpaceInformationPtr 
                                           ModelBasedStateSpacePtr mbss,
                                           kinematics::KinematicsBasePtr group_kinematics,
                                           kinematic_constraints::KinematicConstraintSetPtr constraints,
+                                          const moveit_msgs::WorkspaceParameters& workspace,
                                           int slices)
 {
     // Totally guessing the workspace bounds.
     // TODO: Need a better way to do this.  There is a workspace description in the motion_plan_request.
+    // ompl::base::RealVectorBounds xyz(3);
+    // xyz.low[0] = -3;
+    // xyz.low[1] = -2.0; // large, since the foot can enter the stow closet thing // -1.1;
+    // xyz.low[2] = -1.1;
+    // xyz.high[0] = 1.1; // halfway ish down the module
+    // xyz.high[1] = 1.1;
+    // xyz.high[2] = 1.1;
+
     ompl::base::RealVectorBounds xyz(3);
-    xyz.low[0] = -3;
-    xyz.low[1] = -2.0; // large, since the foot can enter the stow closet thing // -1.1;
-    xyz.low[2] = -1.1;
-    xyz.high[0] = 1.1; // halfway ish down the module
-    xyz.high[1] = 1.1;
-    xyz.high[2] = 1.1;
+    xyz.low[0] = workspace.min_corner.x;
+    xyz.low[1] = workspace.min_corner.y; // large, since the foot can enter the stow closet thing // -1.1;
+    xyz.low[2] = workspace.min_corner.z;
+    xyz.high[0] = workspace.max_corner.x; // halfway ish down the module
+    xyz.high[1] = workspace.max_corner.y;
+    xyz.high[2] = workspace.max_corner.z;
 
     std::vector<int> xyzSlices(3, slices); // 3D, 'slices' cuts in each dimension
     bool diagonalEdges = true;
@@ -90,8 +99,8 @@ static ompl::base::PlannerPtr allocatePlanner(const ompl::base::SpaceInformation
 
 R2GeometricPlanningContext::R2GeometricPlanningContext() : GeometricFixedPosePlanningContext()
 {
-    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr(), 4));
-    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL1", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr(), 1));
+    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr(), request_.workspace_parameters, 4));
+    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL1", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, kinematics::KinematicsBasePtr(), kinematic_constraints::KinematicConstraintSetPtr(), request_.workspace_parameters, 1));
     GeometricPlanningContext::registerPlannerAllocator("geometric::RLRT", boost::bind(&allocatePlanner<ompl::geometric::RLRT>, _1, _2, _3));
     GeometricPlanningContext::registerPlannerAllocator("geometric::BiRLRT", boost::bind(&allocatePlanner<ompl::geometric::BiRLRT>, _1, _2, _3));
 }
@@ -148,13 +157,19 @@ void R2GeometricPlanningContext::allocateStateSpace(const ModelBasedStateSpaceSp
     // Do this (again) here to avoid seg fault because state space is not allocated in constructor and bind latches the parameter at execution time
     // Must also do it in the constructor, otherwise the context will not be found.
     // Must do it RIGHT HERE because the planner is allocated in the base class initialize call.
-    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, legs_kinematics_, path_constraints_, 4));
-    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL1", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, legs_kinematics_, path_constraints_, 1));
+    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, legs_kinematics_, path_constraints_, request_.workspace_parameters, 4));
+    GeometricPlanningContext::registerPlannerAllocator("geometric::XXL1", boost::bind(&allocateXXL<ompl::geometric::XXL>, _1, _2, _3, mbss_, legs_kinematics_, path_constraints_, request_.workspace_parameters, 1));
 }
 
 // Simplify using the Cartesian distance minimizing interpolator
 double R2GeometricPlanningContext::simplifySolution(double max_time)
 {
+    // bypass the fancy simplifier for now...
+    return GeometricPlanningContext::simplifySolution(max_time);
+
+    /////
+    // Fancy simplifier that uses cartesian interpolator...
+
     ompl::time::point start = ompl::time::now();
 
     ompl::base::PlannerTerminationCondition ptc = ompl::base::timedPlannerTerminationCondition(max_time);
