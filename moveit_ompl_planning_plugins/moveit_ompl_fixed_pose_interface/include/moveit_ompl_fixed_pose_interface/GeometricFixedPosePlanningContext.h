@@ -81,6 +81,8 @@ protected:
     /// \brief Return true if we are using the Cartesian distance minimizing interpolator
     bool useCartesianInterpolator(const std::string& planner) const;
 
+    void setOptimizationObjective();
+
     /// \brief Thread-safe scratch space for the context.
     boost::mutex work_state_lock_;
     robot_state::RobotStatePtr work_state_1_;

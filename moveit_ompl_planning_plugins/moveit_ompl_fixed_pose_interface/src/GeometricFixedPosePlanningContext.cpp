@@ -37,7 +37,7 @@
 #include "moveit_ompl_fixed_pose_interface/GeometricFixedPosePlanningContext.h"
 #include "moveit/ompl_interface/parameterization/joint_space/joint_model_state_space.h"
 #include "moveit_ompl_components/LinearMotionValidator.h"
-//#include "moveit_ompl_components/CartesianDistanceOptimizationObjective.h"
+#include "moveit_ompl_components/CartesianDistanceOptimizationObjective.h"
 //#include "moveit_ompl_components/GroupClearanceOptimizationObjective.h"
 
 #include <pluginlib/class_loader.h>
@@ -137,7 +137,7 @@ void GeometricFixedPosePlanningContext::initialize(const std::string& ros_namesp
     }
     mbss_->setInterpolationFunction(boost::bind(&GeometricFixedPosePlanningContext::interpolate, this, _1, _2, _3, _4, cartesianInterpolator));
 
-
+    setOptimizationObjective();
 }
 
 // TODO: Put this flag in as a planner param in the .yaml file?
@@ -279,8 +279,24 @@ void GeometricFixedPosePlanningContext::allocateStateSpace(const ModelBasedState
     mbss_ = boost::static_pointer_cast<ModelBasedStateSpace>(state_space_);
 }
 
-//void GeometricFixedPosePlanningContext::setOptimizationObjective()
-//{
+void GeometricFixedPosePlanningContext::setOptimizationObjective()
+{
+    // Cartesian distance minimization objective
+    // Will specify specific links instead of using just group links
+    ompl::base::OptimizationObjectivePtr objective(new CartesianDistanceOptimizationObjective(this));
+    CartesianDistanceOptimizationObjective* distobj = static_cast<CartesianDistanceOptimizationObjective*>(objective.get());
+
+    // These are the ONLY links we will compute distance for
+    distobj->addLink("r2/head");
+    //distobj->addLink("r2/left_palm");
+    //distobj->addLink("r2/right_palm");
+    distobj->addLink("r2/left_leg_foot");
+    distobj->addLink("r2/right_leg_foot");
+    distobj->addLink("r2/robot_world");
+
+    simple_setup_->setOptimizationObjective(objective);
+
+
     // Approximate clearance computation
     // ompl::base::OptimizationObjectivePtr clearanceObjective(new GroupClearanceOptimizationObjective(this));
     // GroupClearanceOptimizationObjective* cobj = static_cast<GroupClearanceOptimizationObjective*>(clearanceObjective.get());
@@ -312,6 +328,6 @@ void GeometricFixedPosePlanningContext::allocateStateSpace(const ModelBasedState
     // cobj->addGroup(right_leg_fixed ? "left_leg" : "right_leg", 1.50, 10.0);
     // cobj->addGroup(right_leg_fixed ? "left_leg" : "right_leg", 2.00, 5.0);
     // simple_setup_->setOptimizationObjective(clearanceObjective);
-//}
+}
 
 CLASS_LOADER_REGISTER_CLASS(ompl_interface::GeometricFixedPosePlanningContext, ompl_interface::OMPLPlanningContext);

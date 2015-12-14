@@ -41,6 +41,8 @@
 #include <moveit/ompl_interface/ompl_planning_context.h>
 #include <moveit/robot_state/robot_state.h>
 
+#include <boost/thread/mutex.hpp>
+
 namespace ompl_interface
 {
     /// \brief An optimization objective which corresponds to optimizing the cartesian distance a set of points travels
@@ -48,6 +50,7 @@ namespace ompl_interface
     {
     public:
         CartesianDistanceOptimizationObjective(const OMPLPlanningContext* context);
+        ~CartesianDistanceOptimizationObjective();
 
         /// \brief Returns identity cost.
         virtual ompl::base::Cost stateCost(const ompl::base::State *s) const;
@@ -57,18 +60,40 @@ namespace ompl_interface
         ///  s2, using the method SpaceInformation::distance(). */
         virtual ompl::base::Cost motionCost(const ompl::base::State *s1, const ompl::base::State *s2) const;
 
-        /** \brief the motion cost heuristic for this objective is
-            simply the configuration space distance between \e s1
-            and \e s2, since this is the optimal cost between any
-            two states assuming no obstacles. */
+        /// \brief the motion cost heuristic for this objective is
+        /// simply the configuration space distance between \e s1
+        /// and \e s2, since this is the optimal cost between any
+        /// two states assuming no obstacles.
         virtual ompl::base::Cost motionCostHeuristic(const ompl::base::State *s1, const ompl::base::State *s2) const;
 
+        /// \brief Instead of computing the distances for all links in the planning group, specify a specific
+        /// link to compute the distance for.  Call this multiple times to add different links.
+        void addLink(const std::string& link);
+
+        /// \brief The minimum distance between states when computing the motion cost
+        double getMinDistance() const;
+
+        /// \brief Set the minimum distance between states when computing the motion cost
+        /// Smaller is more accurate, but slower.
+        void setMinDistance(double dist);
+
     protected:
-        ompl::base::Cost cartesianJointDistance(const robot_state::RobotState& s1, const robot_state::RobotState& s2,
-                                                const std::string& group_name) const;
+        ompl::base::Cost cartesianJointDistance(const robot_state::RobotState& s1, const robot_state::RobotState& s2) const;
+
+        /// The minimum distance between states when computing the motion cost.  Smaller is
+        /// more accurate computation, but slower.
+        double minDistance_;
+
+        bool userSpecifiedLinks_;
+        std::vector<std::string> link_names_;
 
         const OMPLPlanningContext* context_;
+
+        /// \brief Mutex for work_state_1, work_state_2, and xstate.
+        boost::mutex work_state_lock_;
+        /// \brief Scratch space for fast computation.  Sorry not sorry about mutable.  Blame OMPL.
         mutable robot_state::RobotStatePtr work_state_1_, work_state_2_;
+        mutable ompl::base::State* xstate_;
     };
 }
 
