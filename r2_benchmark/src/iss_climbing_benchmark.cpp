@@ -104,31 +104,39 @@ void querySwitchEvent(const moveit_msgs::MotionPlanRequest& request, planning_sc
     }
 }
 
-double cartesianJointDistance(const robot_state::RobotState& s1, const robot_state::RobotState& s2, const std::vector<std::string>& links)
+double cartesianDistance(const robot_state::RobotState& s1, const robot_state::RobotState& s2, const std::string& link)
 {
-    double dist = 0.0;
-    for(size_t i = 0; i < links.size(); ++i)
-    {
-        const Eigen::Affine3d& frame_a = s1.getGlobalLinkTransform(links[i]);
-        const Eigen::Affine3d& frame_b = s2.getGlobalLinkTransform(links[i]);
-        dist += (frame_b.translation() - frame_a.translation()).norm();
-    }
-    return dist;
+    const Eigen::Affine3d& frame_a = s1.getGlobalLinkTransform(link);
+    const Eigen::Affine3d& frame_b = s2.getGlobalLinkTransform(link);
+    return (frame_b.translation() - frame_a.translation()).norm();
 }
 
-double cartesianJointDistance(const robot_state::RobotState& s1, const robot_state::RobotState& s2)
+double orientationDistance(const robot_state::RobotState& s1, const robot_state::RobotState& s2, const std::string& link)
 {
-    std::vector<std::string> links;
-    links.push_back("r2/head");
-    links.push_back("r2/left_palm");
-    links.push_back("r2/right_palm");
-    links.push_back("r2/left_leg_foot");
-    links.push_back("r2/right_leg_foot");
-    return cartesianJointDistance(s1, s2, links);
+    const Eigen::Affine3d& f1 = s1.getGlobalLinkTransform(link);
+    const Eigen::Affine3d& f2 = s2.getGlobalLinkTransform(link);
+
+    Eigen::Quaterniond q1(f1.rotation());
+    Eigen::Quaterniond q2(f2.rotation());
+
+    double d1 = q1.x()*q2.x() + q1.y()*q2.y() + q1.z()*q2.z() + q1.w()*q2.w();
+    double d2 = q1.x()*-q2.x() + q1.y()*-q2.y() + q1.z()*-q2.z() + q1.w()*-q2.w();
+
+    // Do this because computers are terrible at math
+    if (d1 < -1.)
+        d1 = -1;
+    if (d2 < -1.)
+        d2 = -1;
+    if (d1 > 1.)
+        d1 = 1;
+    if (d2 > 1.)
+        d2 = 1;
+
+    return std::min(acos(d1), acos(d2));
 }
 
 // Aggregate the cartesian distance information for the trajectories
-void postRunCartesianDistance(const moveit_msgs::MotionPlanRequest& request, const planning_interface::MotionPlanDetailedResponse& response,
+void postRunDistances(const moveit_msgs::MotionPlanRequest& request, const planning_interface::MotionPlanDetailedResponse& response,
                               moveit_benchmarks::BenchmarkExecutor::PlannerRunData& run_data)
 {
     if (response.trajectory_.size() == 0)
@@ -139,11 +147,70 @@ void postRunCartesianDistance(const moveit_msgs::MotionPlanRequest& request, con
         return;
     }
 
-    std::cout << "Post run..." << std::endl;
+    // The set of links that we will measure distance traveled.  Assumed that the trajectory has many points interpolated along path
+    std::vector<std::string> links;
+    links.push_back("r2/head");
+    //links.push_back("r2/left_palm");
+    //links.push_back("r2/right_palm");
+    links.push_back("r2/left_leg_foot");
+    links.push_back("r2/right_leg_foot");
+    links.push_back("r2/robot_world"); // waist
 
     for (std::size_t i = 0; i < response.trajectory_.size(); ++i)
     {
-        std::cout << "   Trajectory [" << response.description_[i] << "] has " << response.trajectory_[i]->getWayPointCount() << " states" << std::endl;
+        std::vector<double> cartDistances(links.size(), 0.);
+        std::vector<double> ornDistances(links.size(), 0.);
+
+        const robot_trajectory::RobotTrajectory &t = *response.trajectory_[i];
+        for (std::size_t j = 1; j < t.getWayPointCount(); ++j)
+        {
+            for(size_t k = 0; k < links.size(); ++k)
+            {
+                cartDistances[k] += cartesianDistance(t.getWayPoint(j-1), t.getWayPoint(j), links[k]);
+                ornDistances[k] += orientationDistance(t.getWayPoint(j-1), t.getWayPoint(j), links[k]);
+            }
+        }
+
+        for(size_t j = 0; j < links.size(); ++j)
+        {
+            std::string link_name = links[j];
+            std::size_t pos = link_name.find("/");
+            if (pos != std::string::npos) // remove r2/ prefix, the forward slash is not a valid character in benchmark db anyway
+                link_name = link_name.substr(pos+1, std::string::npos);
+
+            std::string cdescription("cartesian_distance_" + link_name + "_" + response.description_[i]);
+            run_data[cdescription + " REAL"] = boost::lexical_cast<std::string>(cartDistances[j]);
+
+            std::string qdescription("quaternion_distance_" + link_name + "_" + response.description_[i]);
+            run_data[qdescription + " REAL"] = boost::lexical_cast<std::string>(ornDistances[j]);
+        }
+
+        double totalCartDist = 0.;
+        double totalOrnDist = 0.;
+        for(size_t j = 0; j < cartDistances.size(); ++j)
+        {
+            totalCartDist += cartDistances[j];
+            totalOrnDist +=  ornDistances[j];
+        }
+
+        std::string cdescription("cartesian_distance_head_feet_waist_" + response.description_[i]);
+        run_data[cdescription + " REAL"] = boost::lexical_cast<std::string>(totalCartDist);
+
+        std::string qdescription("quaternion_distance_head_feet_waist_" + response.description_[i]);
+        run_data[qdescription + " REAL"] = boost::lexical_cast<std::string>(totalOrnDist);
+    }
+
+    /*if (response.trajectory_.size() == 0)
+        return;
+    if (response.trajectory_.size() != response.description_.size())
+    {
+        ROS_WARN("The number of trajectories (%lu) is different from the number of descriptions (%lu)", response.trajectory_.size(), response.description_.size());
+        return;
+    }
+
+    for (std::size_t i = 0; i < response.trajectory_.size(); ++i)
+    {
+        //std::cout << "   Trajectory [" << response.description_[i] << "] has " << response.trajectory_[i]->getWayPointCount() << " states" << std::endl;
 
         double cart_dist = 0.0;
         const robot_trajectory::RobotTrajectory &t = *response.trajectory_[i];
@@ -152,10 +219,48 @@ void postRunCartesianDistance(const moveit_msgs::MotionPlanRequest& request, con
 
         std::string description("cartesian_distance_" + response.description_[i]);
         run_data[description + " REAL"] = boost::lexical_cast<std::string>(cart_dist);
-    }
-
-    std::cout << "Post run esta muerte" << std::endl;
+    }*/
 }
+
+// double maxRollPitch(const robot_state::RobotState& state, std::string link = "r2/head")
+// {
+//     const Eigen::Affine3d& frame = state.getGlobalLinkTransform(link);
+//     Eigen::Vector3d rpy = frame.rotation().eulerAngles(0,1,2);
+//     return std::max(fabs(rpy(0)), fabs(rpy(1)));
+// }
+
+// // Aggregate the cartesian distance information for the trajectories
+// void postRunHeadRollPitch(const moveit_msgs::MotionPlanRequest& request, const planning_interface::MotionPlanDetailedResponse& response,
+//                           moveit_benchmarks::BenchmarkExecutor::PlannerRunData& run_data)
+// {
+//     if (response.trajectory_.size() == 0)
+//         return;
+//     if (response.trajectory_.size() != response.description_.size())
+//     {
+//         ROS_WARN("The number of trajectories (%lu) is different from the number of descriptions (%lu)", response.trajectory_.size(), response.description_.size());
+//         return;
+//     }
+
+//     for (std::size_t i = 0; i < response.trajectory_.size(); ++i)
+//     {
+
+//         const robot_trajectory::RobotTrajectory &t = *response.trajectory_[i];
+
+//         double initialMaxRollAndPitch = maxRollPitch(t.getWayPoint(0));  // initial condition.  Rest will measure deviation from initial max roll/pitch
+//         double maxRollAndPitch = 0.0;
+
+//         for (std::size_t j = 0; j < t.getWayPointCount(); ++j)
+//         {
+//             double maxRP = maxRollPitch(t.getWayPoint(j));
+//             double diff = fabs(maxRP - initialMaxRollAndPitch);
+//             if (diff > maxRollAndPitch)
+//                 maxRollAndPitch = diff;
+//         }
+
+//         std::string description("max_head_roll_pitch_" + response.description_[i]);
+//         run_data[description + " REAL"] = boost::lexical_cast<std::string>(maxRollAndPitch);
+//     }
+// }
 
 void runBenchmarks()
 {
@@ -174,7 +279,8 @@ void runBenchmarks()
     opts.getPlannerPluginList(plugins);
     server.initialize(plugins);
     server.addQueryStartEvent(boost::bind(&querySwitchEvent, _1, _2, &world)); // disable collisions with handrails we are touching or want to touch
-    server.addPostRunEvent(postRunCartesianDistance);                          // compute the cartesian distance traveled by a set of links on each path
+    server.addPostRunEvent(postRunDistances);                                  // compute the distance traveled by a set of links on each path, position and orientation
+    //server.addPostRunEvent(postRunHeadRollPitch);                              // compute the maximum orientation change by the head in roll or pitch dimensions
 
     // Running benchmarks
     if (!server.runBenchmarks(opts))
