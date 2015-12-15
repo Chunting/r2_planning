@@ -42,7 +42,8 @@
 namespace ompl_interface
 {
 
-/// \brief Definition of a geometric planning context that respects a single pose constraint
+/// \brief Definition of a geometric planning context that respects a single pose constraint,
+/// filled with lots of R2 specific functionality
 class R2GeometricPlanningContext : public GeometricFixedPosePlanningContext
 {
 public:
@@ -54,13 +55,18 @@ public:
 
     virtual void initialize(const std::string& ros_namespace, const PlanningContextSpecification& spec);
 
+    /// \brief Overloaded to allow specification of exact goal configuration via joint positions
+    /// in conjunction with the MoveItR2JointConstraintSamplerAllocator.
+    virtual bool setGoalConstraints(const std::vector<moveit_msgs::Constraints> &goal_constraints,
+                                    moveit_msgs::MoveItErrorCodes *error);
+
 protected:
-    /// \brief Allocate the StateSpace for the given specification.  This will initialize the
-    /// \e mbss_ member.
-    virtual void allocateStateSpace(const ModelBasedStateSpaceSpecification& state_space_spec);
 
     /// \brief Simplify the solution path (in simple setup).  Use no more than max_time seconds.
-    virtual double simplifySolution(double max_time);
+    //virtual double simplifySolution(double max_time);
+
+    ompl::base::PlannerPtr allocateXXL(const ompl::base::SpaceInformationPtr &si, const std::string &new_name,
+                                       const std::map<std::string, std::string>& params, int slices);
 
     kinematics::KinematicsBasePtr legs_kinematics_;
 };

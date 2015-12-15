@@ -44,6 +44,9 @@ R2XXLPositionDecomposition::R2XXLPositionDecomposition(const ompl::base::RealVec
                                                        kinematic_constraints::KinematicConstraintSetPtr constraints,
                                                        ompl::base::SpaceInformationPtr si) : ompl::geometric::XXLPositionDecomposition(bounds, slices, diagonalEdges)
 {
+    mbss_ = mbss;
+    si_ = si;
+
     // Quick sanity check on the inputs
     if (!mbss_)
     {
@@ -68,9 +71,6 @@ R2XXLPositionDecomposition::R2XXLPositionDecomposition(const ompl::base::RealVec
         ROS_ERROR("%s: constraints is NULL", __FUNCTION__);
         throw;
     }
-
-    mbss_ = mbss;
-    si_ = si;
 
     moveit_r2_kinematics::MoveItR2TreeKinematicsPlugin* treePlugin = dynamic_cast<moveit_r2_kinematics::MoveItR2TreeKinematicsPlugin*>(legs_kinematics.get());
     if (!treePlugin)
