@@ -23,7 +23,7 @@
 class R2Interface
 {
 public:
-    R2Interface(const std::string& robot_description = "robot_description");
+    R2Interface(const std::string& group = "legs", const std::string& robot_description = "robot_description");
     ~R2Interface();
 
     // Enable/disable fake robot localization.  This will turn on/off a TF broadcaster
@@ -107,6 +107,9 @@ public:
     void enableCollisionChecking(const std::string& link1, const std::string& link2, bool allow, bool waitForAck=false);
     // Enable/disable collisions between all pairs of bodies
     void enableCollisionChecking(const std::vector<std::string> bodies, bool allow, bool waitForAck=false);
+    // Enable/disable collisions between all pairs of bodies in the two sets
+    void enableCollisionChecking(const std::vector<std::string> set1, const std::vector<std::string> set2,
+                                 bool allow, bool waitForAck=false);
 
     // Attach/detach an object from the robot
     void attachObjectToRobot(const moveit_msgs::AttachedCollisionObject& attached_obj);
@@ -197,6 +200,9 @@ private:
     ros::NodeHandle nh_;
 
     planning_scene_monitor::PlanningSceneMonitorPtr psm_;
+
+    // The group configured for inverse kinematics.
+    std::string group_name_;
 
     // True if broadcasting worldFrame_ to tf
     bool fakeLocalize_;

@@ -26,7 +26,7 @@ static const std::string RESET_FRAME_TOPIC = "/reset_base_frame";
 namespace r2rviz
 {
 
-R2Planning::R2Planning(QWidget* parent) : rviz::Panel(parent), r2Interface("robot_description")
+R2Planning::R2Planning(QWidget* parent) : rviz::Panel(parent)
 {
     //// TRAJECTORY EXECUTION STUFF ////
     QGroupBox* trajGroup = new QGroupBox("Trajectory selection");

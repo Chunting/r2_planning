@@ -7,7 +7,7 @@ iss:
       roll: 0.0
       pitch: 0.0
       yaw: 0.0
-    frame: virtual_world
+    frame: world
     mesh_resource: package://r2_gazebo/models/iss/meshes/US_Lab_Empty_Rack_noHandrail.dae
 
 handrails:
@@ -19,7 +19,7 @@ handrails:
         roll: 0.0
         pitch: 0.0
         yaw: 0.0
-      frame: virtual_world
+      frame: world
       group: Handrail_deck
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
 
@@ -31,7 +31,7 @@ handrails:
         roll: 0.0
         pitch: 0.0
         yaw: 1.57079
-      frame: virtual_world
+      frame: world
       group: Handrail_deck
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
 
@@ -43,7 +43,7 @@ handrails:
         roll: 0.0
         pitch: 0.0
         yaw: 1.57079
-      frame: virtual_world
+      frame: world
       group: Handrail_deck
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
 
@@ -55,7 +55,7 @@ handrails:
         roll: 0.0
         pitch: 0.0
         yaw: 1.57079
-      frame: virtual_world
+      frame: world
       group: Handrail_deck
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
 
@@ -67,7 +67,7 @@ handrails:
         roll: 0.0
         pitch: 0.0
         yaw: 1.57079
-      frame: virtual_world
+      frame: world
       group: Handrail_deck
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
 
@@ -79,7 +79,7 @@ handrails:
         roll: -1.57079
         pitch: 0.0
         yaw: 1.57079
-      frame: virtual_world
+      frame: world
       group: Handrail_port
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
 
@@ -91,7 +91,7 @@ handrails:
         roll: -1.57079
         pitch: 0.0
         yaw: 1.57079
-      frame: virtual_world
+      frame: world
       group: Handrail_port
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
 
@@ -103,7 +103,7 @@ handrails:
         roll: -1.57079
         pitch: 0.0
         yaw: 1.57079
-      frame: virtual_world
+      frame: world
       group: Handrail_port
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
 
@@ -115,7 +115,7 @@ handrails:
         roll: -1.57079
         pitch: 0.0
         yaw: 1.57079
-      frame: virtual_world
+      frame: world
       group: Handrail_port
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
 
@@ -127,7 +127,7 @@ handrails:
         roll: 1.57079
         pitch: 0.0
         yaw: -1.57079
-      frame: virtual_world
+      frame: world
       group: Handrail_starboard
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
 
@@ -139,7 +139,7 @@ handrails:
         roll: 1.57079
         pitch: 0.0
         yaw: -1.57079
-      frame: virtual_world
+      frame: world
       group: Handrail_starboard
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
 
@@ -151,7 +151,7 @@ handrails:
         roll: 1.57079
         pitch: 0.0
         yaw: -1.57079
-      frame: virtual_world
+      frame: world
       group: Handrail_starboard
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
 
@@ -163,7 +163,7 @@ handrails:
         roll: 1.57079
         pitch: 0.0
         yaw: -1.57079
-      frame: virtual_world
+      frame: world
       group: Handrail_starboard
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae
 
@@ -175,6 +175,6 @@ handrails:
         roll: 1.57079
         pitch: 0.0
         yaw: -1.57079
-      frame: virtual_world
+      frame: world
       group: Handrail_starboard
       mesh_resource: package://r2_gazebo/models/handrail_41_5/meshes/handrail_41_5.dae

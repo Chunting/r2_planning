@@ -56,7 +56,7 @@ public:
 class Executor
 {
 public:
-    Executor(bool simulate = false) : interface_("robot_description")
+    Executor(bool simulate = false)
     {
         execStatusSub_ = nh_.advertise<std_msgs::String>(EXEC_STATUS_TOPIC, 0);
         recoverTrajectorySub_ = nh_.advertise<moveit_msgs::RobotTrajectory>(RECOVER_TRAJECTORY_TOPIC, 0);

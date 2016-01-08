@@ -45,7 +45,7 @@
 #include <r2_planning_msgs/R2MotionPlanRequest.h>
 #include <r2_planning_msgs/R2SimplePlanRequest.h>
 
-static const char* const R2_GLOBAL_FRAME_NAME = "virtual_world";
+static const char* const R2_GLOBAL_FRAME_NAME = "world";
 static const char* const R2_PLANNING_SERVICE_NAME = "r2_motion_plan";
 static const char* const R2_SIMPLE_PLANNING_SERVICE_NAME = "r2_simple_motion_plan";
 

@@ -84,7 +84,7 @@ moveit_msgs::PositionConstraint createPositionConstraint(const std::string& link
     moveit_msgs::PositionConstraint pos_constraint;
 
     // This pose is with respect to the kinematic root
-    std::string frame_id = "virtual_world";
+    std::string frame_id = "world";
 
     // Setting position constraint for link_name
     pos_constraint.link_name = link_name;
@@ -133,7 +133,7 @@ moveit_msgs::OrientationConstraint createOrientationConstraint(const std::string
     moveit_msgs::OrientationConstraint or_constraint;
 
     // This pose is with respect to the kinematic root
-    std::string frame_id = "virtual_world";
+    std::string frame_id = "world";
 
     // Create an orientation constraint for link_name
     or_constraint.link_name = link_name;
@@ -329,7 +329,7 @@ moveit_msgs::OrientationConstraint createTorsoUpConstraint()
 
     // Constrain torso upright
     moveit_msgs::OrientationConstraint torso_orn_constraint;
-    torso_orn_constraint.header.frame_id = "virtual_world";
+    torso_orn_constraint.header.frame_id = "world";
     torso_orn_constraint.orientation = q;
     torso_orn_constraint.link_name = "r2/robot_world";
     torso_orn_constraint.absolute_x_axis_tolerance = moveit_r2_kinematics::HIGH_PRIO_ANGULAR_TOL;
@@ -353,7 +353,7 @@ void createARGOSTorsoConstraints(moveit_msgs::Constraints& constraints, double t
     moveit_msgs::OrientationConstraint or_constraint;
     or_constraint.link_name = "r2/robot_world";
     or_constraint.orientation = pose_msg.orientation;
-    or_constraint.header.frame_id = "virtual_world";
+    or_constraint.header.frame_id = "world";
     or_constraint.weight = 1.0;
 
     // No roll or pitch allowed.  Yaw is unconstrained
@@ -370,7 +370,7 @@ void createBaseLinkConstraints(moveit_msgs::Constraints& constraints, const std:
                                double angularTol = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL)
 {
     moveit_msgs::PositionConstraint pos_constraint;
-    std::string frame_id = "virtual_world";
+    std::string frame_id = "world";
 
     // Setting position constraint
     pos_constraint.link_name = linkName;
@@ -537,7 +537,7 @@ bool handrailClimbing(R2Interface& interface, const ISSWorld& world)
         Eigen::Affine3d goal_pose = getGoalPose(world, handrailPlacements[i]);
         geometry_msgs::PoseStamped pose_msg;
         tf::poseEigenToMsg(goal_pose, pose_msg.pose);
-        pose_msg.header.frame_id = "virtual_world";
+        pose_msg.header.frame_id = "world";
 
         // fix the fixed leg for the whole path
         // moveit_msgs::Constraints path_constraints;
@@ -625,12 +625,13 @@ bool handrailClimbing(R2Interface& interface, const ISSWorld& world)
                                //"HiLo",       // good-ish.  Can probably make better
                                //"HiLo_AG",    // seems to be the winner - compromise between path wackiness and speed.
                                //"BiHiLo",        // better, still not great
-                               "XXL",         // seems to work well-ish.  I saw a backflip.
+                               //"XXL",         // seems to work well-ish.  I saw a backflip.
+                               //"XXL1",
                                //"XXL_AG",        // seems to work well-ish.  No backflips, but second step is difficult for interpolator.
                                //"RRTConnect", // high failure rate, even for "easy" problems.  When it works, it's super fast.  Wacky paths
                                //"RRTConnect_AG", // High failure rate and bad paths.  Probably safe to exclude from any benchmarking
                                //"RRT_AG", // lots of fails, but less (?) than bidirectional RRT
-                               //"RRT",       // much better success rate than RRT_AG and RRTConnect, but paths look cray cray
+                               "RRT",       // much better success rate than RRT_AG and RRTConnect, but paths look cray cray
                                //"RRTstar",     // Reasonable success rate, but still wacky looking paths
                                //"CBiRRT2",  // slow, but paths look good-ish.  Probably because it is leveraging the IK solver joint seed to minimize joint distance
                                //"RRT_LC",  // super experimental

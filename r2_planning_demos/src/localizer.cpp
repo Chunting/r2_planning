@@ -20,7 +20,7 @@ static const std::string RESET_FRAME_TOPIC = "/reset_base_frame";
 class Localizer
 {
 public:
-    Localizer(const std::string& base, unsigned int freq=10) : interface("robot_description"), rate(freq)
+    Localizer(const std::string& base, unsigned int freq=10) : rate(freq)
     {
         interface.setDefaultJointPositions();
         workState = interface.allocRobotState();

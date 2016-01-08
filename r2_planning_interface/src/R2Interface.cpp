@@ -37,7 +37,7 @@ static const char* const ATTACHED_OBJECT_TOPIC         = "attached_collision_obj
 static const char* const RVIZ_DISPLAY_TRAJECTORY_TOPIC = "/move_group/display_planned_path";        // publish trajectories to visualize here
 
 // Explicitly NOT loading kinematics solvers.  Takes a long time, and we don't use them here.  Use move_group for kinematics
-R2Interface::R2Interface(const std::string& robot_description) : psm_(new planning_scene_monitor::PlanningSceneMonitor(robot_model_loader::RobotModelLoaderPtr(new robot_model_loader::RobotModelLoader(robot_description, false)))), fakeLocalize_(false), gazebo_(false)
+R2Interface::R2Interface(const std::string& group, const std::string& robot_description) : psm_(new planning_scene_monitor::PlanningSceneMonitor(robot_model_loader::RobotModelLoaderPtr(new robot_model_loader::RobotModelLoader(robot_description, false)))), group_name_(group), fakeLocalize_(false), gazebo_(false)
 {
     jointPublisher_ = nh_.advertise<sensor_msgs::JointState>(JOINT_STATES_TOPIC, 0);
     obstaclePublisher_ = nh_.advertise<moveit_msgs::CollisionObject>(COLLISION_OBJECT_TOPIC, 0);
@@ -55,14 +55,27 @@ R2Interface::R2Interface(const std::string& robot_description) : psm_(new planni
     virtualJointName_ = "virtual_joint";
     worldFrame_ = Eigen::Affine3d::Identity();
 
+    ROS_INFO("Configuring R2Interface for group '%s'", group_name_.c_str());
+
     // HACK.  TODO: Fix this
+    // std::vector<std::string> tip_frames;
+    // tip_frames.push_back("r2/right_ankle_roll");
+    // tip_frames.push_back("r2/left_ankle_roll");
+    // std::string group_name("legs");
+    // std::string base_frame("virtual_world");
+    // treeKinematics_ = new moveit_r2_kinematics::R2TreeKinematicsInterface();
+    // if(!treeKinematics_->initialize(robot_description, group_name, base_frame, tip_frames))
+    //     ROS_ERROR("%s: Failed to initialize tree kinematics interface.  TreeIK will not work", "R2Interface");
+
+    // Explicitly loading a kinematics solver for one particular group
+    // Omitting tip_frames.  Tip frames are not needed for this functionality.
     std::vector<std::string> tip_frames;
-    tip_frames.push_back("r2/right_ankle_roll");
-    tip_frames.push_back("r2/left_ankle_roll");
-    std::string group_name("legs");
-    std::string base_frame("virtual_world");
+    //tip_frames.push_back("r2/right_ankle_roll");
+    //tip_frames.push_back("r2/left_ankle_roll");
+    //tip_frames.push_back("r2/right_palm");
+    std::string base_frame("world");
     treeKinematics_ = new moveit_r2_kinematics::R2TreeKinematicsInterface();
-    if(!treeKinematics_->initialize(robot_description, group_name, base_frame, tip_frames))
+    if(!treeKinematics_->initialize(robot_description, group_name_, base_frame, tip_frames))
         ROS_ERROR("%s: Failed to initialize tree kinematics interface.  TreeIK will not work", "R2Interface");
 }
 
@@ -462,6 +475,52 @@ void R2Interface::enableCollisionChecking(const std::vector<std::string> bodies,
     }
 }
 
+void R2Interface::enableCollisionChecking(const std::vector<std::string> set1, const std::vector<std::string> set2, bool allow, bool waitForAck)
+{
+    if (set1.size() == 0 || set2.size() == 0)
+        return;
+
+    collision_detection::AllowedCollisionMatrix acm(getPlanningScene()->getAllowedCollisionMatrix());
+    for(size_t i = 0; i < set1.size(); ++i)
+        for(size_t j = 0; j < set2.size(); ++j)
+            acm.setEntry(set1[i], set2[j], allow);
+
+    moveit_msgs::PlanningScene scene_msg;
+    getPlanningScene()->getPlanningSceneMsg(scene_msg);
+    acm.getMessage(scene_msg.allowed_collision_matrix);
+    scene_msg.is_diff = true;
+
+    planningSceneDirty_ = true;
+    scenePublisher_.publish(scene_msg);
+
+    if (waitForAck)
+    {
+        double waitTime = 10000; // us
+        double maxWait = 2000000; // us (2 sec)
+        double wait = 0.0;
+        while (planningSceneDirty_ && wait < maxWait)  // don't actually wait forever
+        {
+            ros::spinOnce(); // mas importante
+            usleep(waitTime);
+            wait += waitTime;
+
+            if (!planningSceneDirty_)  // make sure update included our matrix change
+            {
+                collision_detection::AllowedCollisionMatrix acm(getPlanningScene()->getAllowedCollisionMatrix());
+                collision_detection::AllowedCollision::Type collisionType = allow ? collision_detection::AllowedCollision::ALWAYS : collision_detection::AllowedCollision::NEVER;\
+
+                for(size_t i = 0; i < set1.size(); ++i)
+                    for(size_t j = 0; j < set2.size(); ++j)
+                        if (!acm.getEntry(set1[i], set2[j], collisionType))
+                            planningSceneDirty_ = true;
+            }
+        }
+
+        if (planningSceneDirty_)
+            ROS_WARN("%s: ACK timeout exceeded", __FUNCTION__);
+    }
+}
+
 void R2Interface::attachObjectToRobot(const moveit_msgs::AttachedCollisionObject& attached_obj)
 {
     attachPublisher_.publish(attached_obj);
@@ -709,93 +768,6 @@ bool R2Interface::plan(const moveit_msgs::RobotState& start_state, const geometr
                        const moveit_msgs::Constraints& path_constraints, double max_time, const std::string& planner_name,
                        moveit_msgs::RobotTrajectory& trajectory_msg, unsigned int tries)
 {
-    /*// Make sure planning service is online
-    if (!ros::service::exists(move_group::PLANNER_SERVICE_NAME, 0))
-    {
-        ROS_ERROR("Planner service %s is not advertised.", move_group::PLANNER_SERVICE_NAME.c_str());
-        return false;
-    }
-    // Open up a client to the planner service
-    ros::ServiceClient plan_client = nh_.serviceClient<moveit_msgs::GetMotionPlan>(move_group::PLANNER_SERVICE_NAME);
-
-    // Create the motion plan query
-    moveit_msgs::GetMotionPlan::Request  plan_req;
-    moveit_msgs::GetMotionPlan::Response plan_resp;
-
-    // Generic planning information
-    plan_req.motion_plan_request.planner_id = planner_name;
-    plan_req.motion_plan_request.group_name = group_name;
-    plan_req.motion_plan_request.num_planning_attempts = tries;
-    plan_req.motion_plan_request.allowed_planning_time = max_time;
-
-    // Workspace bounds
-    plan_req.motion_plan_request.workspace_parameters = workspace_;
-
-    // Setting start state
-    plan_req.motion_plan_request.start_state = start_state;
-
-    // Setting goal state - this is a series of constraints on the system for the final state
-    // Constructing position constraint
-    moveit_msgs::PositionConstraint goal_pos_constraint;
-    goal_pos_constraint.header.frame_id = goal_pose.header.frame_id;
-    goal_pos_constraint.link_name = goal_link;
-    goal_pos_constraint.target_point_offset.x = 0;
-    goal_pos_constraint.target_point_offset.y = 0;
-    goal_pos_constraint.target_point_offset.z = 0;
-
-    // Define a very small bounding box
-    shape_msgs::SolidPrimitive box;
-    box.type = shape_msgs::SolidPrimitive::BOX;
-    box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);  // BOX_X
-    box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);  // BOX_Y
-    box.dimensions.push_back(moveit_r2_kinematics::CRITICAL_PRIO_LINEAR_TOL);  // BOX_Z
-    goal_pos_constraint.constraint_region.primitives.push_back(box);
-    goal_pos_constraint.weight = 1.0;
-
-    // Center the bounding volume at the pose location
-    goal_pos_constraint.constraint_region.primitive_poses.push_back(goal_pose.pose);
-
-    // Create orientation constraint
-    moveit_msgs::OrientationConstraint goal_orn_constraint;
-    goal_orn_constraint.header.frame_id = goal_pose.header.frame_id;
-    goal_orn_constraint.orientation = goal_pose.pose.orientation;
-    goal_orn_constraint.link_name = goal_link;
-    goal_orn_constraint.absolute_x_axis_tolerance = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL;
-    goal_orn_constraint.absolute_y_axis_tolerance = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL;
-    goal_orn_constraint.absolute_z_axis_tolerance = moveit_r2_kinematics::CRITICAL_PRIO_ANGULAR_TOL;
-    goal_orn_constraint.weight = 1.0;
-
-    // Bring constraints together
-    moveit_msgs::Constraints goal_constraint_msg;
-    goal_constraint_msg.position_constraints.push_back(goal_pos_constraint);
-    goal_constraint_msg.orientation_constraints.push_back(goal_orn_constraint);
-
-    // Setting all goal constraints
-    plan_req.motion_plan_request.goal_constraints.push_back(goal_constraint_msg);
-
-    // Setting path constraints - constraints that must be respected at all times
-    plan_req.motion_plan_request.path_constraints = path_constraints;
-
-    // One motion plan, pretty please
-    if(plan_client.call(plan_req, plan_resp))
-    {
-        if (plan_resp.motion_plan_response.error_code.val != 1)
-        {
-            ROS_ERROR("Failed to compute motion plan.  Error code %d", plan_resp.motion_plan_response.error_code.val);
-            return false;
-        }
-        else
-        {
-            trajectory_msg = plan_resp.motion_plan_response.trajectory;
-            ROS_INFO("Planning successful.  Time: %f secs.  Trajectory has %lu waypoints", plan_resp.motion_plan_response.planning_time, trajectory_msg.joint_trajectory.points.size());
-            //lastPlanningTime_ = plan_resp.motion_plan_response.planning_time;
-            return true;
-        }
-    }
-
-    ROS_ERROR("Unknown error when invoking planning service call.");
-    return false;*/
-
     moveit_msgs::PositionConstraint goal_pos_constraint;
     goal_pos_constraint.header.frame_id = goal_pose.header.frame_id;
     goal_pos_constraint.link_name = goal_link;
@@ -851,24 +823,6 @@ bool R2Interface::plan(const moveit_msgs::RobotState& start_state, const moveit_
 
     createMotionPlanRequest(start_state, path_constraints, goal_constraints, group_name,
                             max_time, planner_name, tries, plan_req.motion_plan_request);
-
-    // Generic planning information
-    // plan_req.motion_plan_request.planner_id = planner_name;
-    // plan_req.motion_plan_request.group_name = group_name;
-    // plan_req.motion_plan_request.num_planning_attempts = tries;
-    // plan_req.motion_plan_request.allowed_planning_time = max_time;
-
-    // // Workspace bounds
-    // plan_req.motion_plan_request.workspace_parameters = workspace_;
-
-    // // Setting start state
-    // plan_req.motion_plan_request.start_state = start_state;
-
-    // // Setting goal constraints
-    // plan_req.motion_plan_request.goal_constraints = goal_constraints;
-
-    // // Setting path constraints - constraints that must be respected at all times
-    // plan_req.motion_plan_request.path_constraints = path_constraints;
 
     // One motion plan, pretty please
     if(plan_client.call(plan_req, plan_resp))
@@ -998,35 +952,10 @@ void R2Interface::gazeboLocalization(bool enable)
     fakeLocalization(enable);
 }
 
-// void R2Interface::worldPoseUpdate(const gazebo_msgs::LinkStates::ConstPtr& msg)
-// {
-//     const std::string linkName = "r2::r2/world_ref";
-//     for(size_t i = 0; i < msg->name.size(); ++i)
-//     {
-//         if (msg->name[i] == linkName)
-//         {
-//             tf::poseMsgToEigen(msg->pose[i], worldFrame_);
-//             break;
-//         }
-//     }
-// }
-
 void R2Interface::worldPoseUpdate(const nav_msgs::Odometry::ConstPtr& msg)
 {
-    // const std::string linkName = "r2::r2/world_ref";
-    // for(size_t i = 0; i < msg->name.size(); ++i)
-    // {
-    //     if (msg->name[i] == linkName)
-    //     {
-    //         tf::poseMsgToEigen(msg->pose[i], worldFrame_);
-    //         break;
-    //     }
-    // }
-
     tf::poseMsgToEigen(msg->pose.pose, worldFrame_);
-    //std::cout << "World pose: " << msg->pose.pose.position << std::endl;
 }
-
 
 void R2Interface::publishVirtualJointFrame(unsigned int rate)
 {
@@ -1041,9 +970,9 @@ void R2Interface::publishVirtualJointFrame(unsigned int rate)
         tf::poseEigenToTF(worldFrame_, transform);
 
         if (gazebo_)
-            tfBroadcaster.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "virtual_world", "reference_frame"));
+            tfBroadcaster.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "world", "reference_frame"));
         else
-            tfBroadcaster.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "virtual_world", "world"));
+            tfBroadcaster.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "world", "r2/world_ref"));
 
         timeSlice.sleep();
     }
