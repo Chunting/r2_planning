@@ -47,10 +47,15 @@
 class R2XXLPositionDecomposition : public ompl::geometric::XXLPositionDecomposition
 {
 public:
+    // R2XXLPositionDecomposition(const ompl::base::RealVectorBounds& bounds, const std::vector<int>& slices, bool diagonalEdges,
+    //                            ompl_interface::ModelBasedStateSpacePtr mbss, kinematics::KinematicsBasePtr legs_kinematics,
+    //                            kinematic_constraints::KinematicConstraintSetPtr constraints,
+    //                            ompl::base::SpaceInformationPtr si);
+
     R2XXLPositionDecomposition(const ompl::base::RealVectorBounds& bounds, const std::vector<int>& slices, bool diagonalEdges,
                                ompl_interface::ModelBasedStateSpacePtr mbss, kinematics::KinematicsBasePtr legs_kinematics,
-                               kinematic_constraints::KinematicConstraintSetPtr constraints,
-                               ompl::base::SpaceInformationPtr si);
+                               const std::vector<std::string>& projected_links, const std::vector<std::vector<std::string> >& freeDoFs,
+                               const std::string& base_link, ompl::base::SpaceInformationPtr si);
 
     virtual ~R2XXLPositionDecomposition();
 
@@ -77,13 +82,15 @@ protected:
     ompl_interface::ModelBasedStateSpacePtr mbss_;
     moveit_r2_kinematics::R2TreeKinematicsInterface* tree_kinematics_;
 
-    kinematic_constraints::KinematicConstraintSetPtr path_constraints_;
+    //kinematic_constraints::KinematicConstraintSetPtr path_constraints_;
     //mutable ompl::RNG rng_;
     mutable random_numbers::RandomNumberGenerator rng_;
     mutable moveit::core::RobotStatePtr work_state_;
     ompl::base::SpaceInformationPtr si_;
 
     std::vector<std::string> projected_links_;
+    std::vector<std::vector<std::string> > free_dofs_;
+
     std::vector<int> all_joints_index_;
     std::vector<int> group_joint_index_;
 

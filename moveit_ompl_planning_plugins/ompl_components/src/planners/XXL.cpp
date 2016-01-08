@@ -44,17 +44,19 @@
 
 ompl::geometric::XXL::XXL(const ompl::base::SpaceInformationPtr &si) : base::Planner(si, "XXL"), topLayer_(NULL), kill_(false)
 {
-
+    xstate_ = si_->allocState();
 }
 
 ompl::geometric::XXL::XXL(const ompl::base::SpaceInformationPtr &si, const XXLDecompositionPtr& decomp) : base::Planner(si, "XXL"), topLayer_(NULL), kill_(false)
 {
+    xstate_ = si_->allocState();
     setDecomposition(decomp);
 }
 
 ompl::geometric::XXL::~XXL()
 {
     freeMemory();
+    si_->freeState(xstate_);
 }
 
 void ompl::geometric::XXL::clear()
@@ -157,7 +159,7 @@ void ompl::geometric::XXL::updateRegionConnectivity(const Motion* m1, const Moti
         return;
 
     const ompl::base::StateSpacePtr& ss = si_->getStateSpace();
-    base::State* xstate = si_->allocState();
+    //base::State* xstate = si_->allocState();
 
     // check the projections of m1 and m2 in all layers at or below layer.  If any one level isn't adjacent, we need to add states
     std::vector<base::State*> intermediateStates;
@@ -179,10 +181,10 @@ void ompl::geometric::XXL::updateRegionConnectivity(const Motion* m1, const Moti
                 while (t < (1.0 - dt/2.0))
                 {
                     std::vector<int> projection;
-                    ss->interpolate(m1->state, m2->state, t, xstate);
-                    decomposition_->project(xstate, projection);
+                    ss->interpolate(m1->state, m2->state, t, xstate_);
+                    decomposition_->project(xstate_, projection);
 
-                    intermediateStates.push_back(si_->cloneState(xstate));
+                    intermediateStates.push_back(si_->cloneState(xstate_));
                     intProjections.push_back(projection);
 
                     t += dt;
@@ -232,10 +234,10 @@ void ompl::geometric::XXL::updateRegionConnectivity(const Motion* m1, const Moti
             while (t < end)
             {
                 std::vector<int> projection;
-                ss->interpolate(m1->state, m2->state, t, xstate);
-                decomposition_->project(xstate, projection);
+                ss->interpolate(m1->state, m2->state, t, xstate_);
+                decomposition_->project(xstate_, projection);
 
-                gapState.push_back(si_->cloneState(xstate));
+                gapState.push_back(si_->cloneState(xstate_));
                 gapProj.push_back(projection);
                 t += newdt;
             }
@@ -300,7 +302,7 @@ void ompl::geometric::XXL::updateRegionConnectivity(const Motion* m1, const Moti
         }
     }
 
-    si_->freeState(xstate);
+    //si_->freeState(xstate);
 }
 
 ompl::geometric::XXL::Layer* ompl::geometric::XXL::getLayer(const std::vector<int>& regions, int layer)
@@ -502,16 +504,16 @@ void ompl::geometric::XXL::updateRegionProperties(const std::vector<int>& region
 
 void ompl::geometric::XXL::sampleStates(Layer* layer, const ompl::base::PlannerTerminationCondition &ptc)
 {
-    base::State* xstate = si_->allocState();
+    //base::State* xstate = si_->allocState();
     std::vector<int> newStates;
     if (layer->getID() == -1) // top layer
     {
         // Just sample uniformly until ptc is triggered
         while(!ptc)
         {
-            sampler_->sampleUniform(xstate);
-            if (si_->isValid(xstate))
-                newStates.push_back(addState(xstate));
+            sampler_->sampleUniform(xstate_);
+            if (si_->isValid(xstate_))
+                newStates.push_back(addState(xstate_));
         }
     }
     else
@@ -526,9 +528,9 @@ void ompl::geometric::XXL::sampleStates(Layer* layer, const ompl::base::PlannerT
             const Motion* seedMotion = motions_[states[rng_.uniformInt(0, states.size()-1)]];
             const base::State* seedState = seedMotion->state;
             // Returns a valid state
-            if (decomposition_->sampleFromRegion(layer->getID(), xstate, seedState, layer->getLevel()-1))
+            if (decomposition_->sampleFromRegion(layer->getID(), xstate_, seedState, layer->getLevel()-1))
             {
-                int idx = addState(xstate);
+                int idx = addState(xstate_);
                 newStates.push_back(idx);
             }
         }
@@ -538,12 +540,91 @@ void ompl::geometric::XXL::sampleStates(Layer* layer, const ompl::base::PlannerT
     for(size_t i = 0; i < newStates.size(); ++i)
         updateRegionProperties(motions_[newStates[i]]->levels);
 
-    si_->freeState(xstate);
+    //si_->freeState(xstate);
 }
 
 void ompl::geometric::XXL::sampleAlongLead(Layer* layer, const std::vector<int>& lead, const ompl::base::PlannerTerminationCondition& ptc)
 {
-    base::State* xstate = si_->allocState();
+    // try to put a valid state in every region, a chicken for every pot
+    int numSampleAttempts = 10;
+    std::vector<int> newStates;
+
+    if (lead.size() == 1) // always sample if lead is just one cell
+    {
+        std::vector<int> nbrs;
+        decomposition_->getNeighborhood(lead[0], nbrs);
+        nbrs.push_back(lead[0]);
+        for(int j = 0; j < numSampleAttempts; ++j)
+        {
+            const ompl::base::State* seed = NULL;
+            //if (layer->getLevel() > 0) // must find a seed.  Try states in the neighborhood.  There probably are some
+            {
+                std::random_shuffle(nbrs.begin(), nbrs.end());
+                for(size_t k = 0; k < nbrs.size() && !seed; ++k)
+                {
+                    const Region& nbrReg = layer->getRegion(nbrs[k]);
+                    if (nbrReg.allMotions.size() > 0) // just pick any old state
+                        seed = motions_[nbrReg.allMotions[rng_.uniformInt(0, nbrReg.allMotions.size()-1)]]->state;
+                }
+                if (!seed)
+                    continue;
+            }
+
+            if (decomposition_->sampleFromRegion(lead[0], xstate_, seed, layer->getLevel()))
+                newStates.push_back(addState(xstate_));
+        }
+    }
+    else  // normal lead with at least two cells
+    {
+        // If any region has relatively few states, sample more there
+        int maxStateCount = 0;
+        for(size_t i = 0; i < lead.size() && !ptc; ++i)
+        {
+            const Region& region = layer->getRegion(lead[i]);
+            if ((int)region.allMotions.size() > maxStateCount)
+                maxStateCount = region.allMotions.size();
+        }
+
+        for(size_t i = 0; i < lead.size() && !ptc; ++i)
+        {
+            const Region& region = layer->getRegion(lead[i]);
+            double p = 1.0 - (region.allMotions.size() / (double)maxStateCount);
+            if (rng_.uniform01() < p)
+            {
+                std::vector<int> nbrs;
+                decomposition_->getNeighborhood(lead[i], nbrs);
+                for(int j = 0; j < numSampleAttempts; ++j)
+                {
+                    const ompl::base::State* seed = NULL;
+                    //if (layer->getLevel() > 0) // must find a seed.  Try states in the neighborhood.  There probably are some
+                    {
+                        std::random_shuffle(nbrs.begin(), nbrs.end());
+                        for(size_t k = 0; k < nbrs.size() && !seed; ++k)
+                        {
+                            const Region& nbrReg = layer->getRegion(nbrs[k]);
+                            if (nbrReg.allMotions.size() > 0) // just pick any old state
+                                seed = motions_[nbrReg.allMotions[rng_.uniformInt(0, nbrReg.allMotions.size()-1)]]->state;
+                        }
+
+                        if (!seed)
+                            continue;
+                    }
+
+                    if (decomposition_->sampleFromRegion(lead[i], xstate_, seed, layer->getLevel()))
+                        newStates.push_back(addState(xstate_));
+                }
+            }
+        }
+    }
+
+    // Update weights after sampling
+    for(size_t i = 0; i < newStates.size(); ++i)
+        updateRegionProperties(motions_[newStates[i]]->levels);
+    for(size_t i = 0; i < lead.size(); ++i)
+        updateRegionProperties(layer, lead[i]);
+
+
+    /*//base::State* xstate = si_->allocState();
 
     // try to put a valid state in every region, a chicken for every pot
     int numSampleAttempts = 10;
@@ -583,8 +664,8 @@ void ompl::geometric::XXL::sampleAlongLead(Layer* layer, const std::vector<int>&
                         continue;
                 }
 
-                if (decomposition_->sampleFromRegion(lead[i], xstate, seed, layer->getLevel()))
-                    newStates.push_back(addState(xstate));
+                if (decomposition_->sampleFromRegion(lead[i], xstate_, seed, layer->getLevel()))
+                    newStates.push_back(addState(xstate_));
             }
         }
     }
@@ -611,8 +692,8 @@ void ompl::geometric::XXL::sampleAlongLead(Layer* layer, const std::vector<int>&
                     continue;
             }
 
-            if (decomposition_->sampleFromRegion(lead[0], xstate, seed, layer->getLevel()))
-                newStates.push_back(addState(xstate));
+            if (decomposition_->sampleFromRegion(lead[0], xstate_, seed, layer->getLevel()))
+                newStates.push_back(addState(xstate_));
         }
     }
 
@@ -621,7 +702,7 @@ void ompl::geometric::XXL::sampleAlongLead(Layer* layer, const std::vector<int>&
     for(size_t i = 0; i < lead.size(); ++i)
         updateRegionProperties(layer, lead[i]);
 
-    si_->freeState(xstate);
+    //si_->freeState(xstate);*/
 }
 
 int ompl::geometric::XXL::steerToRegion(Layer* layer, int from, int to)
@@ -725,14 +806,14 @@ int ompl::geometric::XXL::expandToRegion(Layer* layer, int from, int to, bool us
     bool newState = false;
     if (toMotion == NULL) // sample a new state
     {
-        base::State* xstate = si_->allocState();
-        if (decomposition_->sampleFromRegion(to, xstate, fromMotion->state, layer->getLevel()))
+        //base::State* xstate = si_->allocState();
+        if (decomposition_->sampleFromRegion(to, xstate_, fromMotion->state, layer->getLevel()))
         {
-            int id = addState(xstate);
+            int id = addState(xstate_);
             toMotion = motions_[id];
             newState = true;
         }
-        si_->freeState(xstate);
+        //si_->freeState(xstate);
 
         if (toMotion == NULL)
             return -1;

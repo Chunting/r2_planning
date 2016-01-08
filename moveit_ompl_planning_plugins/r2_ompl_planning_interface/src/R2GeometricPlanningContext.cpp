@@ -75,7 +75,96 @@ ompl::base::PlannerPtr R2GeometricPlanningContext::allocateXXL(const ompl::base:
     std::vector<int> xyzSlices(3, slices); // 3D decomposition, 'slices' cuts in each dimension
     bool diagonalEdges = true;
 
-    ompl::geometric::XXLDecompositionPtr decomp(new R2XXLPositionDecomposition(xyz, xyzSlices, diagonalEdges, mbss_, legs_kinematics_, path_constraints_, si));
+    // Figure out which leg is 'fixed'
+    const std::vector<moveit_msgs::PositionConstraint>& pos_constraints = path_constraints_->getPositionConstraints();
+    const std::vector<moveit_msgs::OrientationConstraint>& orn_constraints = path_constraints_->getOrientationConstraints();
+
+    // Complete hack to figure out what link is fixed.  Assuming there is only one link with both position and orientation constrained
+    std::string fixed_link_name = "";
+    for(size_t i = 0; i < pos_constraints.size(); ++i)
+    {
+        for(size_t j = 0; j < orn_constraints.size(); ++j)
+            if (pos_constraints[i].link_name == orn_constraints[j].link_name)
+                fixed_link_name = pos_constraints[i].link_name;
+    }
+
+    if (fixed_link_name == "")
+    {
+        ROS_ERROR("%s: Could not determine which link is the base", __FUNCTION__);
+        throw;
+    }
+
+    // The list of links to project, in topological order
+    std::vector<std::string> projectedLinks;
+
+    // A set of "free" DoFs after planning for each link in the hierarchy
+    // The first entry is always empty, since these DoFs are never 'free'
+    std::vector<std::vector<std::string> >freeDoFs;
+
+    projectedLinks.push_back("r2/robot_world"); // world is always first
+    freeDoFs.push_back(std::vector<std::string>()); // this is always empty
+
+    if (fixed_link_name.find("left") != std::string::npos) // left leg is fixed, so project the right foot
+    {
+        projectedLinks.push_back("r2/right_leg_foot");
+
+        std::vector<std::string> dofs(7);
+        dofs[0] = "r2/right_leg/joint0";
+        dofs[1] = "r2/right_leg/joint1";
+        dofs[2] = "r2/right_leg/joint2";
+        dofs[3] = "r2/right_leg/joint3";
+        dofs[4] = "r2/right_leg/joint4";
+        dofs[5] = "r2/right_leg/joint5";
+        dofs[6] = "r2/right_leg/joint6";
+        freeDoFs.push_back(dofs);
+    }
+    else // right leg is fixed, so project the left foot
+    {
+        projectedLinks.push_back("r2/left_leg_foot");
+
+        std::vector<std::string> dofs(7);
+        dofs[0] = "r2/left_leg/joint0";
+        dofs[1] = "r2/left_leg/joint1";
+        dofs[2] = "r2/left_leg/joint2";
+        dofs[3] = "r2/left_leg/joint3";
+        dofs[4] = "r2/left_leg/joint4";
+        dofs[5] = "r2/left_leg/joint5";
+        dofs[6] = "r2/left_leg/joint6";
+        freeDoFs.push_back(dofs);
+    }
+
+    // if we are planning for arms and legs, add in those links.  Order does not matter
+    if (spec_.group == "legs_right_arm" || spec_.group == "legs_arms")
+    {
+        projectedLinks.push_back("r2/right_palm");
+
+        std::vector<std::string> dofs(7);
+        dofs[0] = "r2/right_arm/joint0";
+        dofs[1] = "r2/right_arm/joint1";
+        dofs[2] = "r2/right_arm/joint2";
+        dofs[3] = "r2/right_arm/joint3";
+        dofs[4] = "r2/right_arm/joint4";
+        dofs[5] = "r2/right_arm/wrist/pitch";
+        dofs[6] = "r2/right_arm/wrist/yaw";
+        freeDoFs.push_back(dofs);
+    }
+    else if (spec_.group == "legs_left_arm" || spec_.group == "legs_arms")
+    {
+        projectedLinks.push_back("r2/left_palm");
+
+        std::vector<std::string> dofs(7);
+        dofs[0] = "r2/left_arm/joint0";
+        dofs[1] = "r2/left_arm/joint1";
+        dofs[2] = "r2/left_arm/joint2";
+        dofs[3] = "r2/left_arm/joint3";
+        dofs[4] = "r2/left_arm/joint4";
+        dofs[5] = "r2/left_arm/wrist/pitch";
+        dofs[6] = "r2/left_arm/wrist/yaw";
+        freeDoFs.push_back(dofs);
+    }
+
+    //ompl::geometric::XXLDecompositionPtr decomp(new R2XXLPositionDecomposition(xyz, xyzSlices, diagonalEdges, mbss_, legs_kinematics_, path_constraints_, si));
+    ompl::geometric::XXLDecompositionPtr decomp(new R2XXLPositionDecomposition(xyz, xyzSlices, diagonalEdges, mbss_, legs_kinematics_, projectedLinks, freeDoFs, fixed_link_name, si));
 
     ompl::base::PlannerPtr planner(new ompl::geometric::XXL(si, decomp));
     if (!new_name.empty())
@@ -103,20 +192,22 @@ std::string R2GeometricPlanningContext::getDescription()
 
 void R2GeometricPlanningContext::initialize(const std::string& ros_namespace, const PlanningContextSpecification& spec)
 {
-    if (spec.group != "legs")
-        ROS_WARN("R2GeometricPlanningContext is meant for the legs group.  Received request for group %s", spec.group.c_str());
+    //if (spec.group != "legs")
+    //    ROS_WARN("R2GeometricPlanningContext is meant for the legs group.  Received request for group %s", spec.group.c_str());
+    if (spec.group.find("legs") != 0) // group should be prefixed with 'legs'
+        ROS_WARN("R2GeometricPlanningContext is meant for the legs.  Received request for group %s", spec.group.c_str());
 
     // Extract IK solver.  Very important this is done prior to the call to R2GeometricPlanningContext::initialize
-    const robot_model::JointModelGroup *legs = spec.model->getJointModelGroup("legs");
-    if (!legs)
+    const robot_model::JointModelGroup *group = spec.model->getJointModelGroup(spec.group);
+    if (!group)
     {
-        ROS_ERROR("R2GeometricPlanningContext: Could not find group configuration for 'legs'");
+        ROS_ERROR("R2GeometricPlanningContext: Could not find group configuration for '%s'", spec.group.c_str());
         return;
     }
 
-    std::pair<robot_model::JointModelGroup::KinematicsSolver, robot_model::JointModelGroup::KinematicsSolverMap> slv = legs->getGroupKinematics();
+    std::pair<robot_model::JointModelGroup::KinematicsSolver, robot_model::JointModelGroup::KinematicsSolverMap> slv = group->getGroupKinematics();
     if (!slv.first)
-        ROS_ERROR("Did not find kinematics solver for group legs");
+        ROS_ERROR("Did not find kinematics solver for group %s", spec.group.c_str());
     else
         legs_kinematics_ = slv.first.solver_instance_;
 

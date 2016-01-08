@@ -41,6 +41,72 @@
 
 R2XXLPositionDecomposition::R2XXLPositionDecomposition(const ompl::base::RealVectorBounds& bounds, const std::vector<int>& slices, bool diagonalEdges,
                                                        ompl_interface::ModelBasedStateSpacePtr mbss, kinematics::KinematicsBasePtr legs_kinematics,
+                                                       const std::vector<std::string>& projected_links, const std::vector<std::vector<std::string> >& freeDoFs,
+                                                       const std::string& base_link, ompl::base::SpaceInformationPtr si) : ompl::geometric::XXLPositionDecomposition(bounds, slices, diagonalEdges)
+{
+    mbss_ = mbss;
+    si_ = si;
+
+    // Quick sanity check on the inputs
+    if (!mbss_)
+    {
+        ROS_ERROR("%s: State space is NULL", __FUNCTION__);
+        throw;
+    }
+
+    if (!si_)
+    {
+        ROS_ERROR("%s: Space information is NULL", __FUNCTION__);
+        throw;
+    }
+
+    if (!legs_kinematics)
+    {
+        ROS_ERROR("%s: legs_kinematics is NULL", __FUNCTION__);
+        throw;
+    }
+
+    moveit_r2_kinematics::MoveItR2TreeKinematicsPlugin* treePlugin = dynamic_cast<moveit_r2_kinematics::MoveItR2TreeKinematicsPlugin*>(legs_kinematics.get());
+    if (!treePlugin)
+    {
+        ROS_ERROR("%s: Failed to cast kinematics solver to type MoveItR2TreeKinematicsPlugin. sampleFromRegion will not work.", __FUNCTION__);
+        tree_kinematics_ = NULL;
+    }
+    else
+    {
+        tree_kinematics_ = treePlugin->getTreeKinematicsInterface();
+        if (!tree_kinematics_)
+            ROS_ERROR("%s: R2TreeKinematicsInterface not initialized in tree kinematics solver. sampleFromRegion will not work.", __FUNCTION__);
+    }
+
+    work_state_.reset(new moveit::core::RobotState(mbss_->getRobotModel()));
+
+    // Cache the variable indices for all joints in the model in the order they are treated
+    // by the kinematics solver.
+    const std::vector<std::string>& all_joints = tree_kinematics_->getAllJointNames();
+    all_joints_index_.resize(all_joints.size());
+    for (size_t i = 0; i < all_joints.size(); ++i)
+        all_joints_index_[i] = mbss_->getRobotModel()->getVariableIndex(all_joints[i]);
+
+    // Cache the variable indices for the joints in the group in the order they are treated
+    // by the kinematics solver
+    const std::vector<std::string>& joint_order = tree_kinematics_->getJointNames();
+    for(size_t i = 0; i < joint_order.size(); ++i)
+        group_joint_index_.push_back(mbss_->getRobotModel()->getVariableIndex(joint_order[i]));
+
+    fixed_link_name_ = base_link;
+    projected_links_ = projected_links;
+    free_dofs_ = freeDoFs;
+
+    if (free_dofs_.size() != projected_links_.size())
+    {
+        ROS_ERROR("%s: Number of projected links != length of free DoFs", __FUNCTION__);
+        throw;
+    }
+}
+
+/*R2XXLPositionDecomposition::R2XXLPositionDecomposition(const ompl::base::RealVectorBounds& bounds, const std::vector<int>& slices, bool diagonalEdges,
+                                                       ompl_interface::ModelBasedStateSpacePtr mbss, kinematics::KinematicsBasePtr legs_kinematics,
                                                        kinematic_constraints::KinematicConstraintSetPtr constraints,
                                                        ompl::base::SpaceInformationPtr si) : ompl::geometric::XXLPositionDecomposition(bounds, slices, diagonalEdges)
 {
@@ -128,7 +194,7 @@ R2XXLPositionDecomposition::R2XXLPositionDecomposition(const ompl::base::RealVec
         projected_links_.push_back("r2/right_leg_foot");
     else
         projected_links_.push_back("r2/left_leg_foot");
-}
+}*/
 
 R2XXLPositionDecomposition::~R2XXLPositionDecomposition()
 {
@@ -181,11 +247,15 @@ void R2XXLPositionDecomposition::initializeRequest(int reg, int layer, const omp
 
     // Setting up IK request.  Fix the previous link in the hierarchy, then move the next link to the desired pose.
     request.addFixedLink(fixed_link_name_);  // this link can never, ever move
-    if (layer > 0)
-    {
-        // TODO: Put all prior projection links in here??
-        request.addFixedLink(projected_links_[layer-1]); // previous projection link does not move either
-    }
+    // if (layer > 0)
+    // {
+    //     // TODO: Put all prior projection links in here??
+    //     request.addFixedLink(projected_links_[layer-1]); // previous projection link does not move either
+    // }
+
+    // Mark all prior projection links as fixed
+    for (int l = layer - 1; l >= 0; --l)
+        request.addFixedLink(projected_links_[l]);
 
     request.setWorldState(seed_state_->getGlobalLinkTransform("r2/robot_world")); // this is where the body is
 
@@ -227,6 +297,90 @@ void R2XXLPositionDecomposition::initializeRequest(int reg, int layer, const omp
 bool R2XXLPositionDecomposition::sampleRemainingJoints(int layer, ompl::base::State* s, const moveit_r2_kinematics::TreeIkResponse& response) const
 {
     // Setting joint values in work_state
+    const std::vector<double>& new_values = response.getJointValues();
+    for(size_t i = 0; i < group_joint_index_.size(); ++i)
+        work_state_->setVariablePosition(group_joint_index_[i], new_values[i]);
+
+    std::vector<std::string> virtual_joint_vars;
+    std::string virtualJointName = "virtual_joint";
+    virtual_joint_vars.push_back(virtualJointName + std::string("/trans_x"));
+    virtual_joint_vars.push_back(virtualJointName + std::string("/trans_y"));
+    virtual_joint_vars.push_back(virtualJointName + std::string("/trans_z"));
+    virtual_joint_vars.push_back(virtualJointName + std::string("/rot_x"));
+    virtual_joint_vars.push_back(virtualJointName + std::string("/rot_y"));
+    virtual_joint_vars.push_back(virtualJointName + std::string("/rot_z"));
+    virtual_joint_vars.push_back(virtualJointName + std::string("/rot_w"));
+
+    // Must update world state too
+    Eigen::Affine3d new_world_pose = response.getWorldState();
+    Eigen::Quaternion<double> q(new_world_pose.rotation());
+    std::vector<double> virtual_joint_vals(7);  // set these in same order as virtual_joint_vars
+    virtual_joint_vals[0] = new_world_pose.translation()[0];
+    virtual_joint_vals[1] = new_world_pose.translation()[1];
+    virtual_joint_vals[2] = new_world_pose.translation()[2];
+    virtual_joint_vals[3] = q.x();
+    virtual_joint_vals[4] = q.y();
+    virtual_joint_vals[5] = q.z();
+    virtual_joint_vals[6] = q.w();
+    work_state_->setVariablePositions(virtual_joint_vars, virtual_joint_vals);
+    mbss_->copyToOMPLState(s, *work_state_);
+    work_state_->update();
+
+    if (si_->isValid(s))  // win
+    {
+        //ROS_WARN("sampleRemainingJoints: No real work to do");
+        return true;
+    }
+    else if (layer == (projected_links_.size() - 1)) // there are no free joints to tweak
+        return false;
+    else  // tweak the joints down the hierarchy to try and find a valid state
+    {
+        moveit::core::RobotModelConstPtr model = work_state_->getRobotModel();
+        double* variables = work_state_->getVariablePositions();
+
+        int maxAttempts = 5;  // try this many joint configurations
+        double variance = 0.1;
+
+        for (int att = 0; att < maxAttempts; ++att)
+        {
+            // Iterate over the free DoFs of all subsequent layers in projection
+            for(int l = layer+1; l < free_dofs_.size(); ++l)
+            {
+                bool random = rng_.uniform01() < 0.10;  // sample random joint angles, or just something nearby?
+
+                for(size_t i = 0; i < free_dofs_[l].size(); ++i)
+                {
+                    const moveit::core::JointModel* joint = model->getJointModel(free_dofs_[l][i]);
+                    if (random)  // WACKY AND WILD CRAZY JOINT POSITIONS!!!
+                        joint->getVariableRandomPositions(rng_, &variables[model->getVariableIndex(free_dofs_[l][i])]);
+                    else  // sample nearby
+                        joint->getVariableRandomPositionsNearBy(rng_, &variables[model->getVariableIndex(free_dofs_[l][i])], &variables[model->getVariableIndex(free_dofs_[l][i])], variance);
+                }
+            }
+
+            // All free DoFs perturbed.  Check validity
+            mbss_->copyToOMPLState(s, *work_state_);
+            if (si_->isValid(s)) // win
+                return true;
+
+            // reset work state for next iteration
+            if (att < maxAttempts - 1)
+            {
+                for(size_t i = 0; i < group_joint_index_.size(); ++i)
+                    work_state_->setVariablePosition(group_joint_index_[i], new_values[i]);
+                work_state_->setVariablePositions(virtual_joint_vars, virtual_joint_vals);
+                work_state_->update();
+            }
+
+            variance += variance;  // double the variance after every attempt
+        }
+    }
+
+    // Failed to find a valid state
+    return false;
+
+
+    /*// Setting joint values in work_state
     const std::vector<double>& new_values = response.getJointValues();
     for(size_t i = 0; i < group_joint_index_.size(); ++i)
         work_state_->setVariablePosition(group_joint_index_[i], new_values[i]);
@@ -305,7 +459,7 @@ bool R2XXLPositionDecomposition::sampleRemainingJoints(int layer, ompl::base::St
         }
     }
 
-    return false;
+    return false;*/
 }
 
 bool R2XXLPositionDecomposition::sampleFromRegion(int r, ompl::base::State* s, const ompl::base::State* seed, int layer) const
@@ -357,6 +511,21 @@ bool R2XXLPositionDecomposition::sampleFromRegion(int r, ompl::base::State* s, c
     }
 
     work_state_mutex_.unlock();
+
+    // super secret debug
+    // Make sure the whole configuration projects inside the workspace
+    if (good)
+    {
+        std::vector<int> regions;
+        project(s, regions);
+        for(size_t i = 0; i < regions.size() && good; ++i)
+            if (regions[i] < 0 || regions[i] >= getNumRegions())
+            {
+                ROS_WARN("R2XXLPositionDecomposition: Sampled a valid state that projects outside the workspace decomposition");
+                good = false;
+            }
+    }
+
     return good;
 }
 

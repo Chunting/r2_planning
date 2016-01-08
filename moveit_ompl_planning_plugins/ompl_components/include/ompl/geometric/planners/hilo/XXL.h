@@ -419,6 +419,8 @@ namespace ompl
             // The number of goal states in each decomposition cell
             boost::unordered_map<std::vector<int>, int> goalCount_;
 
+            base::State* xstate_;
+
             // The number of states in realGraph that have verified edges in the graph
             unsigned int statesConnectedInRealGraph_;
 
