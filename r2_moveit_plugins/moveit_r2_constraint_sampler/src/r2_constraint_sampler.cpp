@@ -37,9 +37,14 @@ bool moveit_r2_constraints::MoveItR2ConstraintSamplerAllocator::canService(const
                                                                            const std::string &group_name,
                                                                            const moveit_msgs::Constraints &constr) const
 {
-    if (group_name != "legs") // TODO: Probably should not discriminate based on group name, but "simpler" groups probably do not.
+    // Any group that starts with 'legs' is good.
+    // TODO: Probably should not discriminate based on group name.
+    std::size_t idx = group_name.find("legs");
+    if (idx != 0)
+    //if (group_name != "legs")
     {
         //ROS_ERROR("MoveItR2ConstraintSamplerAllocator: Group '%s' is not allowed", group_name.c_str());
+        ROS_ERROR("MoveItR2ConstraintSamplerAllocator cannot service group '%s'", group_name.c_str());
         return false;
     }
 
