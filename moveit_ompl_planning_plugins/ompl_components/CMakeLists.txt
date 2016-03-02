@@ -37,6 +37,7 @@ add_library(moveit_ompl_components
             src/SubdivisionMotionValidator.cpp
             src/LinearMotionValidator.cpp
             src/CartesianDistanceOptimizationObjective.cpp
+            src/TorsoDeclinationOptimizationObjective.cpp
             src/GoalSamplingPathSimplifier.cpp
             src/planners/LazyTRRT.cpp
             src/planners/CASPER.cpp

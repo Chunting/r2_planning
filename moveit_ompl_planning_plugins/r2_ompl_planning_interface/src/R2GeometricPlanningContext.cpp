@@ -37,6 +37,7 @@
 #include "r2_ompl_planning_interface/R2GeometricPlanningContext.h"
 #include "r2_ompl_planning_interface/R2XXLPositionDecomposition.h"
 #include "moveit_ompl_components/CartesianDistancePathSimplifier.h"
+#include "moveit_ompl_components/TorsoDeclinationOptimizationObjective.h"
 
 #include <pluginlib/class_loader.h>
 
@@ -205,6 +206,8 @@ void R2GeometricPlanningContext::initialize(const std::string& ros_namespace, co
         return;
     }
 
+    ROS_WARN("Initializing R2GeometricPlanningContext for group %s", spec.group.c_str());
+
     std::pair<robot_model::JointModelGroup::KinematicsSolver, robot_model::JointModelGroup::KinematicsSolverMap> slv = group->getGroupKinematics();
     if (!slv.first)
         ROS_ERROR("Did not find kinematics solver for group %s", spec.group.c_str());
@@ -223,6 +226,19 @@ void R2GeometricPlanningContext::initialize(const std::string& ros_namespace, co
         interpolator_->ignoreJoint("r2/right_leg/joint2");
         interpolator_->ignoreJoint("r2/right_leg/joint4");
         interpolator_->ignoreJoint("r2/right_leg/joint6");
+    }
+
+    // total hack
+    if (spec.planner == "TRRT")
+    {
+        // for TRRT, penalize torso deviation
+        ROS_WARN("Using Torso Declination optimization objective");
+
+        ompl::base::OptimizationObjectivePtr objective(new ompl_interface::TorsoDeclinationOptimizationObjective(this, "r2/head"));
+        simple_setup_->setOptimizationObjective(objective);
+
+        // Don't simplify.  This may make the path worse
+        simplify_ = false;
     }
 }
 

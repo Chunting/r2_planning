@@ -371,7 +371,7 @@ namespace ompl
 
             // Sample states uniformly at random in the given layer until ptc is triggered
             void sampleStates(Layer* layer, const ompl::base::PlannerTerminationCondition& ptc);
-            void sampleAlongLead(Layer* layer, const std::vector<int>& lead, const ompl::base::PlannerTerminationCondition& ptc);
+            bool sampleAlongLead(Layer* layer, const std::vector<int>& lead, const ompl::base::PlannerTerminationCondition& ptc);
 
             int steerToRegion(Layer* layer, int from, int to);
             int expandToRegion(Layer* layer, int from, int to, bool useExisting = false);

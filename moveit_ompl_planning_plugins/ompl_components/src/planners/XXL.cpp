@@ -116,7 +116,7 @@ void ompl::geometric::XXL::setup()
 
     statesConnectedInRealGraph_ = 0;
 
-    maxGoalStatesPerRegion_ = 25;  // todo: make this a parameter
+    maxGoalStatesPerRegion_ = 100;  // todo: make this a parameter
     maxGoalStates_ = 500;  // todo: Make this a parameter
 
     kill_ = false;
@@ -377,7 +377,7 @@ int ompl::geometric::XXL::addGoalState(const base::State* state)
     std::vector<int> proj;
     decomposition_->project(state, proj);
     boost::unordered_map<std::vector<int>, int>::iterator it = goalCount_.find(proj);
-    if (it != goalCount_.end() && it->second > (int)maxGoalStatesPerRegion_)
+    if (it != goalCount_.end() && it->second >= (int)maxGoalStatesPerRegion_)
         return -1;
     else
     {
@@ -393,6 +393,8 @@ int ompl::geometric::XXL::addGoalState(const base::State* state)
 
     const Motion* motion = motions_[id];
     goalMotions_.push_back(motion->index);
+    //if (goalCount_[proj] == maxGoalStatesPerRegion_ || goalMotions_.size() == 1) // some output so we know things are running
+    //    OMPL_INFORM("%s: Goal state count: %lu", getName().c_str(), goalMotions_.size());
 
     // Goal states are always placed in the real graph
     // Updating sublayer storage with this motion
@@ -543,7 +545,7 @@ void ompl::geometric::XXL::sampleStates(Layer* layer, const ompl::base::PlannerT
     //si_->freeState(xstate);
 }
 
-void ompl::geometric::XXL::sampleAlongLead(Layer* layer, const std::vector<int>& lead, const ompl::base::PlannerTerminationCondition& ptc)
+bool ompl::geometric::XXL::sampleAlongLead(Layer* layer, const std::vector<int>& lead, const ompl::base::PlannerTerminationCondition& ptc)
 {
     // try to put a valid state in every region, a chicken for every pot
     int numSampleAttempts = 10;
@@ -616,6 +618,9 @@ void ompl::geometric::XXL::sampleAlongLead(Layer* layer, const std::vector<int>&
             }
         }
     }
+
+    //if (newStates.size())
+    //    OMPL_INFORM("Sampled %lu states along lead", newStates.size());
 
     // Update weights after sampling
     for(size_t i = 0; i < newStates.size(); ++i)
@@ -703,6 +708,8 @@ void ompl::geometric::XXL::sampleAlongLead(Layer* layer, const std::vector<int>&
         updateRegionProperties(layer, lead[i]);
 
     //si_->freeState(xstate);*/
+
+    return newStates.size() > 0;
 }
 
 int ompl::geometric::XXL::steerToRegion(Layer* layer, int from, int to)
@@ -1112,7 +1119,8 @@ void ompl::geometric::XXL::connectRegion(Layer* layer, int reg, const base::Plan
     std::vector<int> shuffledMotions(allMotions.begin(), allMotions.end());
     std::random_shuffle(shuffledMotions.begin(), shuffledMotions.end());
 
-    size_t maxIdx = (shuffledMotions.size() > 20 ? shuffledMotions.size() / 2 : shuffledMotions.size());
+    //size_t maxIdx = (shuffledMotions.size() > 20 ? shuffledMotions.size() / 2 : shuffledMotions.size());
+    size_t maxIdx = shuffledMotions.size();
 
     // This method will try to connect states in different connected components
     // of the real graph together
@@ -1213,7 +1221,8 @@ void ompl::geometric::XXL::connectRegions(Layer* layer, int r1, int r2, const ba
     std::vector<int> shuffledMotions2(allMotions2.begin(), allMotions2.end());
     std::random_shuffle(shuffledMotions2.begin(), shuffledMotions2.end());
 
-    size_t maxConnections = 25;
+    // size_t maxConnections = 25;
+    size_t maxConnections = std::numeric_limits<size_t>::max();
     size_t maxIdx1 = (all ? shuffledMotions1.size() : std::min(shuffledMotions1.size(), maxConnections));
     size_t maxIdx2 = (all ? shuffledMotions2.size() : std::min(shuffledMotions2.size(), maxConnections));
 
@@ -1290,7 +1299,8 @@ void ompl::geometric::XXL::computeLead(Layer* layer, std::vector<int>& lead)
 {
     if (startMotions_.size() == 0)
         throw ompl::Exception("Cannot compute lead without at least one start state");
-    //if (goalMotions_.size() == 0)
+    if (goalMotions_.size() == 0)
+        OMPL_WARN("No goal states to compute lead to");
     //    throw ompl::Exception("Cannot compute lead without at least one goal state");
 
     int start, end;
@@ -1397,6 +1407,8 @@ bool ompl::geometric::XXL::searchForPath(Layer* layer, const ompl::base::Planner
     //if (goalMotions_.size() == 0) // cannot compute a lead without a goal state
     //    return false;
 
+    getGoalStates();  // non-threaded version
+
     // If there are promising subregions, pick one of them most of the time
     double p = layer->connectibleRegions() / ((double)layer->connectibleRegions() + 1);
     if (layer->hasSublayers() && layer->connectibleRegions() > 0 && rng_.uniform01() < p)
@@ -1409,7 +1421,7 @@ bool ompl::geometric::XXL::searchForPath(Layer* layer, const ompl::base::Planner
     }
     else
     {
-        //OMPL_DEBUG("%s: layer %d(%d)", __FUNCTION__, layer->getLevel(), layer->getID());
+        //OMPL_INFORM("%s: layer %d(%d)", __FUNCTION__, layer->getLevel(), layer->getID());
 
         std::vector<int> lead;
         computeLead(layer, lead);
@@ -1424,18 +1436,24 @@ bool ompl::geometric::XXL::searchForPath(Layer* layer, const ompl::base::Planner
         #endif
 
         // sample states where they are needed along lead
-        sampleAlongLead(layer, lead, ptc);
+        //OMPL_INFORM("Level %d lead length: %lu", layer->getLevel(), lead.size());
+        bool newStates = sampleAlongLead(layer, lead, ptc);
 
         // Every region in the lead has a valid state in it
         if (feasibleLead(layer, lead, ptc))
         {
             std::vector<int> candidates;
             // Find a feasible path through the lead
-            if (connectLead(layer, lead, candidates, ptc))
-            {
-                constructSolutionPath();
+            // if (connectLead(layer, lead, candidates, ptc))
+            // {
+            //     constructSolutionPath();
+            //     return true;
+            // }
+
+            // Find a feasible path through the lead
+            connectLead(layer, lead, candidates, ptc);
+            if (constructSolutionPath())
                 return true;
-            }
 
             // No feasible path found, but see if we can descend in layers to focus
             /// the search in specific regions identified during connection attempts
@@ -1501,6 +1519,9 @@ ompl::base::PlannerStatus ompl::geometric::XXL::solve(const ompl::base::PlannerT
         ompl::luna::Profiler::Start();
     #endif
 
+    while(!ptc && goalMotions_.size() == 0)
+        getGoalStates(); // make sure at least one goal state exists before planning
+
     while (!ptc && !foundSolution)
     {
         #ifdef ENABLE_PROFILING
@@ -1522,15 +1543,15 @@ ompl::base::PlannerStatus ompl::geometric::XXL::solve(const ompl::base::PlannerT
         // foundSolution = searchForPath(topLayer_, ptc);
         // ompl::luna::Profiler::End("searchForPath");
 
-        getGoalStates();  // non-threaded version
+        //getGoalStates();  // non-threaded version
         foundSolution = searchForPath(topLayer_, ptc);
     }
 
-    // if (!foundSolution && constructSolutionPath())
-    // {
-    //     OMPL_ERROR("Tripped and fell over a solution path.");
-    //     foundSolution = true;
-    // }
+    if (!foundSolution && constructSolutionPath())
+    {
+        OMPL_ERROR("Tripped and fell over a solution path.");
+        foundSolution = true;
+    }
 
     #ifdef ENABLE_PROFILING
         ompl::luna::Profiler::Stop();
@@ -1667,7 +1688,7 @@ bool ompl::geometric::XXL::constructSolutionPath()
 
     if (bestGoal == -1)
     {
-        OMPL_ERROR("%s: No solution path exists.  constructSolutionPath() should never have been called", getName().c_str());
+        //OMPL_ERROR("%s: No solution path exists.  constructSolutionPath() should never have been called", getName().c_str());
         return false;
     }
 
