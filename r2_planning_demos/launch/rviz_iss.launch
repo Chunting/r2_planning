@@ -9,8 +9,11 @@
   <!-- Load universal robotic description format (URDF) -->
   <param name="robot_description" textfile="$(find r2_description)/urdf/r2c6.urdf"/>
 
-  <!-- Load a simplified URDF for legs ONLY (for faster inverse kinematics) -->
-  <param name="legs/simplified_robot_description" command="$(find xacro)/xacro.py '$(find r2_simplified_urdf)/r2c6_legs_only_creepy.xacro'" />
+  <!-- Load a simplified URDF for specific groups (for faster inverse kinematics only) -->
+  <param name="legs/simplified_robot_description"           command="$(find xacro)/xacro.py '$(find r2_simplified_urdf)/r2c6_legs_only_creepy.xacro'" />
+  <param name="legs_left_arm/simplified_robot_description"  command="$(find xacro)/xacro.py '$(find r2_simplified_urdf)/r2c6_legs_left_arm_creepy.xacro'" />
+  <param name="legs_right_arm/simplified_robot_description" command="$(find xacro)/xacro.py '$(find r2_simplified_urdf)/r2c6_legs_right_arm_creepy.xacro'" />
+  <param name="legs_arms/simplified_robot_description"      command="$(find xacro)/xacro.py '$(find r2_simplified_urdf)/r2c6_legs_arms_only_creepy.xacro'" />
 
   <!-- Load OMPL settings -->
   <include file="$(find r2_moveit_config)/launch/planning_context.launch">
@@ -22,7 +25,7 @@
   <!--<node pkg="tf" type="static_transform_publisher" name="virtual_joint_broadcaster_0" args="0 0 0 0 0 0 virtual_world world 20" />-->
 
   <!-- Add custom constraint samplers.  This must be namespaced to move_group.  Should probably add to move_group launch file -->
-  <param name="/move_group/constraint_samplers" value="moveit_r2_constraints/MoveItR2ConstraintSamplerAllocator moveit_r2_constraints/MoveItR2PoseSamplerAllocator"/>
+  <param name="/move_group/constraint_samplers" value="moveit_r2_constraints/MoveItR2ConstraintSamplerAllocator moveit_r2_constraints/MoveItR2PoseSamplerAllocator moveit_r2_constraints/MoveItR2JointConstraintSamplerAllocator"/>
 
   <!-- Disable trajectory duration monitoring in MoveIt.  The times we send are totally wrong -->
   <rosparam if="$(arg execute)" param="/move_group/trajectory_execution/execution_duration_monitoring">false</rosparam>
@@ -38,6 +41,8 @@
   <!-- Start up the moveit warehouse db -->
   <include if="$(arg db)" file="$(find r2_moveit_config)/launch/default_warehouse_db.launch" />
 
+  <!-- Interpolate all paths to have at least 100 waypoints -->
+  <!-- <rosparam param="move_group/ompl_context_mgr/minimum_waypoint_count">100</rosparam> -->
 
   <!-- Fire up rviz -->
   <include file="$(find r2_moveit_config)/launch/moveit_rviz.launch">

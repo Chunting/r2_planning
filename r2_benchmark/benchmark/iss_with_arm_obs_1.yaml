@@ -1,0 +1,45 @@
+benchmark_config:
+    warehouse:
+        host: 127.0.0.1
+        port: 33829
+        scene_name: ISS_arms_obs2         # Required
+    parameters:
+        name: ISS_Legs_R_Arm_obs_unstow
+        runs: 50
+        group: legs_right_arm             # Required
+        timeout: 30.0
+        output_directory: /home/rluna/ROS/benchmarks/
+        queries: step_Handrail_deck_1_r_arm_0
+        start_states: unstow
+        workspace:
+            frame_id: world
+            min_corner:
+                x: -3
+                y: -2.0
+                z: -1.1
+            max_corner:
+                x: 1.1
+                y: 1.5
+                z: 1.5
+        # goal_offset:
+        #     x: 0
+        #     y: 0
+        #     z: 0
+        #     roll: 0
+        #     pitch: 0
+        #     yaw: 0
+    planners:
+        - plugin: ompl_interface/OMPLPlanningContextManager
+          planners:
+            - RRT
+            - RRTConnect
+            - RRTstar
+            - KPIECE
+            - BKPIECE
+            - RLRT
+            - BiRLRT
+            - STRIDE
+            - XXL
+            - XXL1
+
+

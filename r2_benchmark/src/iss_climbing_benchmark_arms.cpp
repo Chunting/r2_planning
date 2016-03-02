@@ -31,6 +31,9 @@ void querySwitchEvent(const moveit_msgs::MotionPlanRequest& request, planning_sc
 
     collision_detection::AllowedCollisionMatrix& acm = planning_scene->getAllowedCollisionMatrixNonConst();
 
+    //std::cout << "THERE ARE " << world->numHandrails() << " handrails in the world" << std::endl;
+    //std::cout << request << std::endl;
+
     // Disable collisions with the constrained link and the handrail it is grasping
     if (request.path_constraints.position_constraints.size() &&
         request.path_constraints.orientation_constraints.size())
@@ -39,7 +42,10 @@ void querySwitchEvent(const moveit_msgs::MotionPlanRequest& request, planning_sc
         Eigen::Affine3d lgripper_pose = state->getGlobalLinkTransform(LEFT_GRIPPER_LINK0);
         unsigned int lhr_idx = world->findHandrail(lgripper_pose.translation());
         if (lhr_idx >= world->numHandrails())
+        {
             ROS_ERROR("No handrail attached to left foot");
+            std::cout << "Position: " << lgripper_pose.translation().transpose() << std::endl;
+        }
         else
         {
             std::string handrail = world->getHandrail(lhr_idx)->name;
@@ -54,7 +60,10 @@ void querySwitchEvent(const moveit_msgs::MotionPlanRequest& request, planning_sc
         Eigen::Affine3d rgripper_pose = state->getGlobalLinkTransform(RIGHT_GRIPPER_LINK0);
         unsigned int rhr_idx = world->findHandrail(rgripper_pose.translation());
         if (rhr_idx >= world->numHandrails())
+        {
             ROS_ERROR("No handrail attached to right foot");
+            std::cout << "Position: " << rgripper_pose.translation().transpose() << std::endl;
+        }
         else
         {
             std::string handrail = world->getHandrail(rhr_idx)->name;
@@ -67,37 +76,117 @@ void querySwitchEvent(const moveit_msgs::MotionPlanRequest& request, planning_sc
         }
     }
 
-    // Disable collisions for the goal link and handrail it will be grasping at the end of the path
-    if (request.goal_constraints.size())
+    if (request.goal_constraints.size() > 1)
+        ROS_WARN("Only expected one set of goal constraints.  Got %lu", request.goal_constraints.size());
+
+    // Disable collisions with the handrail(s) that are grasped at the end of the path
+    for(size_t i = 0; i < request.goal_constraints[0].position_constraints.size(); ++i)
     {
-        if (request.goal_constraints[0].position_constraints.size() &&
-            request.goal_constraints[0].orientation_constraints.size())
+        for(size_t j = 0; j < request.goal_constraints[0].orientation_constraints.size(); ++j)
         {
-            // Need to disable collision checking with the constrained link and the obstacle it is "grasping"
-            collision_detection::AllowedCollisionMatrix& acm = planning_scene->getAllowedCollisionMatrixNonConst();
-
-            bool left_leg_fixed = request.goal_constraints[0].position_constraints[0].link_name.find("left") != std::string::npos;
-
-            if (request.goal_constraints[0].position_constraints[0].constraint_region.primitive_poses.size())
+            if (request.goal_constraints[0].position_constraints[i].link_name == request.goal_constraints[0].orientation_constraints[j].link_name)
             {
-                Eigen::Affine3d link_pose;
-                tf::poseMsgToEigen(request.goal_constraints[0].position_constraints[0].constraint_region.primitive_poses[0], link_pose);
-
-                Eigen::Vector3d position = link_pose.translation();
-                unsigned int hr_idx = world->findHandrail(position);
-                if (hr_idx < world->numHandrails())
+                std::cout << "CHECKING OUT " << request.goal_constraints[0].position_constraints[i].link_name << std::endl;
+                std::string link = request.goal_constraints[0].position_constraints[i].link_name;
+                bool leg  = link.find("leg")  != std::string::npos;
+                bool left = link.find("left") != std::string::npos;
+                if (leg)
                 {
-                    std::string handrail = world->getHandrail(hr_idx)->name;
+                    Eigen::Affine3d link_pose;
+                    tf::poseMsgToEigen(request.goal_constraints[0].position_constraints[i].constraint_region.primitive_poses[0], link_pose);
 
-                    acm.setEntry(left_leg_fixed ? LEFT_GRIPPER_LINK0 : RIGHT_GRIPPER_LINK0, handrail, true);  // true means "allow this collision"
-                    acm.setEntry(left_leg_fixed ? LEFT_GRIPPER_LINK1 : RIGHT_GRIPPER_LINK1, handrail, true);  // true means "allow this collision"
-                    acm.setEntry(left_leg_fixed ? LEFT_FOOT_LINK     : RIGHT_FOOT_LINK,     handrail, true);  // true means "allow this collision"
+                    Eigen::Vector3d position = link_pose.translation();
+                    unsigned int hr_idx = world->findHandrail(position);
+                    if (hr_idx < world->numHandrails())
+                    {
+                        std::string handrail = world->getHandrail(hr_idx)->name;
 
-                    ROS_WARN("%s foot will grasp %s.  Disabling collisions.", left_leg_fixed ? "Left" : "Right", handrail.c_str());
+                        acm.setEntry(left ? LEFT_GRIPPER_LINK0 : RIGHT_GRIPPER_LINK0, handrail, true);  // true means "allow this collision"
+                        acm.setEntry(left ? LEFT_GRIPPER_LINK1 : RIGHT_GRIPPER_LINK1, handrail, true);  // true means "allow this collision"
+                        acm.setEntry(left ? LEFT_FOOT_LINK     : RIGHT_FOOT_LINK,     handrail, true);  // true means "allow this collision"
+
+                        ROS_WARN("%s foot will grasp %s.  Disabling collisions.", left ? "Left" : "Right", handrail.c_str());
+                    }
+                    else
+                    {
+                        ROS_ERROR("Did not detect goal handrail for foot");
+                    }
                 }
-                else
+                else // assume arm
                 {
-                    ROS_ERROR("Did not detect goal handrail");
+                    // All the links that compose the left hand
+                    std::vector<std::string> left_links;
+                    left_links.push_back("r2/left_palm");
+                    left_links.push_back("r2/left_thumb_base");
+                    left_links.push_back("r2/left_thumb_proximal");
+                    left_links.push_back("r2/left_thumb_medial_prime");
+                    left_links.push_back("r2/left_thumb_medial");
+                    left_links.push_back("r2/left_thumb_distal");
+                    left_links.push_back("r2/left_thumb_tip");
+                    left_links.push_back("r2/left_index_base");
+                    left_links.push_back("r2/left_index_yaw");
+                    left_links.push_back("r2/left_index_proximal");
+                    left_links.push_back("r2/left_index_medial");
+                    left_links.push_back("r2/left_middle_base");
+                    left_links.push_back("r2/left_middle_yaw");
+                    left_links.push_back("r2/left_middle_proximal");
+                    left_links.push_back("r2/left_middle_medial");
+                    //left_links.push_back("r2/left_middle_distal");
+                    //left_links.push_back("r2/left_middle_tip");
+                    left_links.push_back("r2/left_ring_proximal");
+                    //left_links.push_back("r2/left_ring_medial");
+                    //left_links.push_back("r2/left_ring_distal");
+                    //left_links.push_back("r2/left_ring_tip");
+                    left_links.push_back("r2/left_little_proximal");
+                    //left_links.push_back("r2/left_little_medial");
+                    //left_links.push_back("r2/left_little_distal");
+                    //left_links.push_back("r2/left_little_tip");
+
+                    // All the links that compose the right hand
+                    std::vector<std::string> right_links;
+                    right_links.push_back("r2/right_palm");
+                    right_links.push_back("r2/right_thumb_base");
+                    right_links.push_back("r2/right_thumb_proximal");
+                    right_links.push_back("r2/right_thumb_medial_prime");
+                    right_links.push_back("r2/right_thumb_medial");
+                    right_links.push_back("r2/right_thumb_distal");
+                    right_links.push_back("r2/right_thumb_tip");
+                    right_links.push_back("r2/right_index_base");
+                    right_links.push_back("r2/right_index_yaw");
+                    right_links.push_back("r2/right_index_proximal");
+                    right_links.push_back("r2/right_index_medial");
+                    right_links.push_back("r2/right_middle_base");
+                    right_links.push_back("r2/right_middle_yaw");
+                    right_links.push_back("r2/right_middle_proximal");
+                    right_links.push_back("r2/right_middle_medial");
+                    //right_links.push_back("r2/right_middle_distal");
+                    //right_links.push_back("r2/right_middle_tip");
+                    right_links.push_back("r2/right_ring_proximal");
+                    //right_links.push_back("r2/right_ring_medial");
+                    //right_links.push_back("r2/right_ring_distal");
+                    //right_links.push_back("r2/right_ring_tip");
+                    right_links.push_back("r2/right_little_proximal");
+                    //right_links.push_back("r2/right_little_medial");
+                    //right_links.push_back("r2/right_little_distal");
+                    //right_links.push_back("r2/right_little_tip");
+
+                    Eigen::Affine3d link_pose;
+                    tf::poseMsgToEigen(request.goal_constraints[0].position_constraints[i].constraint_region.primitive_poses[0], link_pose);
+
+                    Eigen::Vector3d position = link_pose.translation();
+                    unsigned int hr_idx = world->findHandrail(position);
+                    if (hr_idx < world->numHandrails())
+                    {
+                        std::string handrail = world->getHandrail(hr_idx)->name;
+                        ROS_WARN("%s hand will grasp %s.  Disabling collisions.", left ? "Left" : "Right", handrail.c_str());
+
+                        for(size_t k = 0; k < left_links.size(); ++k)
+                            acm.setEntry(left ? left_links[k] : right_links[k], handrail, true);  // true means "allow this collision"
+                    }
+                    else
+                    {
+                        ROS_ERROR("Did not detect goal handrail for hand");
+                    }
                 }
             }
         }
@@ -159,7 +248,7 @@ void postRunDistances(const moveit_msgs::MotionPlanRequest& request, const plann
     std::vector<std::string> links;
     links.push_back("r2/head");
     //links.push_back("r2/left_palm");
-    //links.push_back("r2/right_palm");
+    links.push_back("r2/right_palm");
     links.push_back("r2/left_leg_foot");
     links.push_back("r2/right_leg_foot");
     links.push_back("r2/robot_world"); // waist
@@ -201,10 +290,10 @@ void postRunDistances(const moveit_msgs::MotionPlanRequest& request, const plann
             totalOrnDist +=  ornDistances[j];
         }
 
-        std::string cdescription("cartesian_distance_head_feet_waist_" + response.description_[i]);
+        std::string cdescription("cartesian_distance_head_feet_waist_hand_" + response.description_[i]);
         run_data[cdescription + " REAL"] = boost::lexical_cast<std::string>(totalCartDist);
 
-        std::string qdescription("quaternion_distance_head_feet_waist_" + response.description_[i]);
+        std::string qdescription("quaternion_distance_head_feet_waist_hand_" + response.description_[i]);
         run_data[qdescription + " REAL"] = boost::lexical_cast<std::string>(totalOrnDist);
     }
 
@@ -329,7 +418,7 @@ void runBenchmarks()
 
 int main(int argc, char** argv)
 {
-    ros::init(argc, argv, "iss_climbing_benchmark");
+    ros::init(argc, argv, "iss_climbing_benchmark_arms");
     ros::AsyncSpinner spinner(1);
     spinner.start();
 

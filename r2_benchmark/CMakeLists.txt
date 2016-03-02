@@ -31,6 +31,9 @@ link_directories(${catkin_LIBRARY_DIRS})
 add_executable(iss_climbing_benchmark src/iss_climbing_benchmark.cpp)
 target_link_libraries(iss_climbing_benchmark ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
+add_executable(iss_climbing_benchmark_arms src/iss_climbing_benchmark_arms.cpp)
+target_link_libraries(iss_climbing_benchmark_arms ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+
 add_executable(make_db src/make_database.cpp)
 target_link_libraries(make_db ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
