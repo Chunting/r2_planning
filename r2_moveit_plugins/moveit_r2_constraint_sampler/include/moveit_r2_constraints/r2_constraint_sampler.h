@@ -102,16 +102,13 @@ protected:
     bool samplePoses(std::vector<geometry_msgs::Pose>& poses, const robot_state::RobotState &ks, unsigned int max_attempts) const;
     bool validLink(const std::string& link_name) const;
 
-    bool callIKAllTips(const std::vector<geometry_msgs::Pose>& poses, robot_state::RobotState &state,
-                       const robot_state::RobotState &reference_state, bool randomizeWorld) const;
+    bool callIK(robot_state::RobotState &state, const robot_state::RobotState& ref_state, const std::vector<geometry_msgs::Pose>& poses) const;
+    void shiftStateByError(robot_state::RobotState& state, const robot_state::JointModel* base_joint,
+                           const std::string& link, const Eigen::Affine3d& desired_pose) const;
 
-    bool sampleIK(const std::vector<geometry_msgs::Pose>& poses, robot_state::RobotState& state) const;
-
-    bool projectIK(const std::vector<geometry_msgs::Pose>& poses, robot_state::RobotState& state,
-                   const robot_state::RobotState &reference_state) const;
-
-    bool callIK(const std::vector<geometry_msgs::Pose>& poses, robot_state::RobotState &state,
-                const robot_state::RobotState &reference_state, const Eigen::Affine3d& world_pose) const;
+    bool projectPose(const constraint_samplers::IKSamplingPose& sampling_pose, const std::vector<int>& priorities, geometry_msgs::Pose& pose,
+                     const robot_state::RobotState &ks, unsigned int max_attempts) const;
+    bool projectPoses(std::vector<geometry_msgs::Pose>& poses, const robot_state::RobotState &ks, unsigned int max_attempts) const;
 
     /// The kinematics solver
     kinematics::KinematicsBaseConstPtr    kb_;
@@ -125,21 +122,14 @@ protected:
     std::string                           ik_frame_;
     /// Holder for the poses used for sampling
     std::vector<constraint_samplers::IKSamplingPose>   sampling_poses_;
-    /// True if the constraint is configured properly
-    bool                                  is_valid_;
     // The list of links being sampled.  In same order as sampling_poses_
     std::vector<std::string>              link_names_;
 
     // The KdlTreeIk priorities for the DOFs of each pose constraint
     std::vector<std::vector<int> >        pose_priorities_;
 
-    // True if all of the tip links for the IK solver are constrained
-    bool                                  all_tips_constrained_;
-
-
-
     unsigned int numFullyConstrainedLinks_;
-    std::vector<bool> fullyConstrainedLinks_;
+    std::vector<int> fullyConstrainedLinks_;  // indexes of the links that are fully constrained
 };
 
 
