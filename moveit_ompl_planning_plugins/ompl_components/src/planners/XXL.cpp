@@ -1768,6 +1768,8 @@ void ompl::geometric::XXL::getGoalStates()
         // Keep goals diverse.  TODO: GoalLazySamples does something similar to this.
         if (dist > 0.5)
             addGoalState(st);
+        else
+            OMPL_WARN("XXL: Rejecting goal state that is %f from another goal", dist);
     }
 }
 

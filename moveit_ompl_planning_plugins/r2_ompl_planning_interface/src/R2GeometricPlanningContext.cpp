@@ -164,7 +164,7 @@ ompl::base::PlannerPtr R2GeometricPlanningContext::allocateXXL(const ompl::base:
         freeDoFs.push_back(dofs);
     }
 
-    //ompl::geometric::XXLDecompositionPtr decomp(new R2XXLPositionDecomposition(xyz, xyzSlices, diagonalEdges, mbss_, legs_kinematics_, path_constraints_, si));
+    // Finally, allocating the planner
     ompl::geometric::XXLDecompositionPtr decomp(new R2XXLPositionDecomposition(xyz, xyzSlices, diagonalEdges, mbss_, legs_kinematics_, projectedLinks, freeDoFs, fixed_link_name, si));
 
     ompl::base::PlannerPtr planner(new ompl::geometric::XXL(si, decomp));

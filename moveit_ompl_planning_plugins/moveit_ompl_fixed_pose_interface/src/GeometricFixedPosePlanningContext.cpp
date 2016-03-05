@@ -79,7 +79,7 @@ void GeometricFixedPosePlanningContext::initialize(const std::string& ros_namesp
 
     if (!path_constraints_)
     {
-        ROS_ERROR("GeometricFixedPosePlanningContext: No path constraints specified");
+        ROS_ERROR("GeometricFixedPosePlanningContext: No path constraints specified.  Cannot configure planning context.");
         initialized_ = false;
         return;
     }
@@ -107,7 +107,11 @@ void GeometricFixedPosePlanningContext::initialize(const std::string& ros_namesp
     }
 
     if (fixed_link_ == "")
-        ROS_WARN("GeometricFixedPosePlanningContext: No link pose is fully constrained");
+    {
+        ROS_ERROR("GeometricFixedPosePlanningContext: No link is fully constrained");
+        initialized_ = false;
+        return;
+    }
     else ROS_INFO("GeometricFixedPosePlanningContext: '%s' is fixed", fixed_link_.c_str());
 
 
@@ -277,6 +281,19 @@ void GeometricFixedPosePlanningContext::allocateStateSpace(const ModelBasedState
     // This context MUST be configured to plan in joint space
     JointModelStateSpacePtr state_space_(new JointModelStateSpace(state_space_spec));
     mbss_ = boost::static_pointer_cast<ModelBasedStateSpace>(state_space_);
+}
+
+ompl::base::PlannerPtr GeometricFixedPosePlanningContext::configurePlanner(const std::string& planner_name, const std::map<std::string, std::string>& params)
+{
+    // This context requires at least one link to have its position and orientation fixed.  If this is not specified
+    // do not allocate a planner.
+    if (!path_constraints_)
+    {
+        ROS_ERROR("GeometricFixedPosePlanningContext: Cannot configure planner '%s' - no path constraints specified", planner_name.c_str());
+        return ompl::base::PlannerPtr();
+    }
+
+    return GeometricPlanningContext::configurePlanner(planner_name, params);
 }
 
 void GeometricFixedPosePlanningContext::setOptimizationObjective()

@@ -376,11 +376,11 @@ bool moveit_r2_constraints::R2KinematicConstraintSampler::configure(const moveit
     if (fullyConstrainedLinks_.size() == 0)
         ROS_WARN("R2KinematicConstraintSampler: There are no fully constrained links.  Base frame is ambiguous");
 
-    ROS_INFO("There are %lu fully constrained and %lu partially constrained links", fullyConstrainedLinks_.size(), link_names_.size() - fullyConstrainedLinks_.size());
+    ROS_INFO("R2KinematicConstraintSampler configured for %lu fully constrained and %lu partially constrained links", fullyConstrainedLinks_.size(), link_names_.size() - fullyConstrainedLinks_.size());
     size_t fcIdx = 0;
     for(size_t i = 0; i < link_names_.size(); ++i)
     {
-        bool fc = fullyConstrainedLinks_[fcIdx] = i;
+        bool fc = fullyConstrainedLinks_.size() && fullyConstrainedLinks_[fcIdx] == i;
         if (fc)
             fcIdx++;
         ROS_INFO("Configured constraint(s) for %s.  Fully constrained? %s", link_names_[i].c_str(), fc ? "YES" : "NO");

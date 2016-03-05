@@ -66,6 +66,9 @@ protected:
     /// \e mbss_ member.
     virtual void allocateStateSpace(const ModelBasedStateSpaceSpecification& state_space_spec);
 
+    /// \brief Return an instance of the given planner_name configured with the given parameters
+    virtual ompl::base::PlannerPtr configurePlanner(const std::string& planner_name, const std::map<std::string, std::string>& params);
+
     // Distance a to b using cartesian joint coordinates instead of joint angles
     double cartesianDistance(const ompl::base::State *a, const ompl::base::State *b) const;
 
